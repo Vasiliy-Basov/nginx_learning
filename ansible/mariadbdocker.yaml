@@ -1,0 +1,8 @@
+---
+- name: Install Mariadb
+  hosts: all
+  remote_user: appuser
+  become: true
+
+  roles:
+    - mariadbdocker

@@ -1,0 +1,15 @@
+---
+acme_challenge_type: http-01
+acme_directory: https://acme-v02.api.letsencrypt.org/directory
+acme_version: 2
+acme_email: baggurd@gmail.com
+letsencrypt_dir: /etc/letsencrypt
+letsencrypt_keys_dir: /etc/letsencrypt/keys
+letsencrypt_csrs_dir: /etc/letsencrypt/csrs
+letsencrypt_certs_dir: /etc/letsencrypt/certs
+letsencrypt_account_key: /etc/letsencrypt/account/account.key
+domain_name: nginx.basov.world
+remaining_days: 60
+project_path: /var/www/html
+web_server_ip: 34.76.32.73
+letsencrypt_nginx_conf_name: letsencrypt

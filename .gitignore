@@ -1,0 +1,7 @@
+.terraform
+/.idea/
+*.tfstate
+*.tfstate.backup
+*.lock.hcl
+*.env
+*ansible/roles/mariadbdocker/defaults/main.yml

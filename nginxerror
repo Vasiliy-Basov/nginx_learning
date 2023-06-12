@@ -1,0 +1,16 @@
+error:
+systemctl status nginx
+# nginx systemd[1]: nginx.service: Can't open PID file /run/nginx.pid (yet?) after start: Operat>
+nginx -t
+nginx: [alert] could not open error log file: open() "/var/log/nginx/error.log" failed (13: Permission denied)
+2023/05/14 20:21:52 [warn] 6027#6027: the "user" directive makes sense only if the master process runs with super-user privileges, ignored in /etc/nginx/nginx.conf:2
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+2023/05/14 20:21:52 [emerg] 6027#6027: open() "/var/run/nginx.pid" failed (13: Permission denied)
+
+решение:
+mkdir /etc/systemd/system/nginx.service.d
+printf "[Service]\nExecStartPost=/bin/sleep 0.1\n" > /etc/systemd/system/nginx.service.d/override.conf
+systemctl daemon-reload
+systemctl restart nginx
+
+mysql -u root -p Bereza@Belaya456

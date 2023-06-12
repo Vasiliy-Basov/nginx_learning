@@ -1,0 +1,19 @@
+---
+- name: Create directory for nginx service override
+  file:
+    path: /etc/systemd/system/nginx.service.d
+    state: directory
+
+- name: Create override.conf file
+  copy:
+    content: "[Service]\nExecStartPost=/bin/sleep 0.1\n"
+    dest: /etc/systemd/system/nginx.service.d/override.conf
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+
+- name: Restart nginx service
+  systemd:
+    name: nginx
+    state: restarted

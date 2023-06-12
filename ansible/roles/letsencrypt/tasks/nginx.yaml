@@ -1,0 +1,45 @@
+---
+- name: Create /etc/nginx/sites-available directory
+  ansible.builtin.file:
+    path: /etc/nginx/sites-available
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create /etc/nginx/sites-enabled directory
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy conf file
+  ansible.builtin.template:
+    src: letsencrypt.conf.j2
+    dest: /etc/nginx/sites-available/{{ letsencrypt_nginx_conf_name }}.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Nginx
+
+- name: Create symbolic link {{ letsencrypt_nginx_conf_name }}.conf
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ letsencrypt_nginx_conf_name }}.conf
+    dest: /etc/nginx/sites-enabled/{{ letsencrypt_nginx_conf_name }}.conf
+    state: link
+    force: yes
+  notify: Restart Nginx
+
+- name: Add nginx user to www-data group
+  ansible.builtin.user:
+    name: nginx
+    groups: www-data
+    append: yes
+
+- name: Ensure Nginx service is running
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: yes

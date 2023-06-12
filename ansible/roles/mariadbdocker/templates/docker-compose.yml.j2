@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  db:
+    image: mariadb:10.7
+    hostname: wp_database
+    container_name: wp_database
+    ports:
+      - 3306:3306
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+    environment:
+      TZ: "Europe/Moscow"
+      MYSQL_ROOT_PASSWORD: {{ DB_ROOT_PASSWORD }}
+      MYSQL_DATABASE: {{ DB_NAME }}
+      MYSQL_USER: {{ DB_USER }}
+      MYSQL_PASSWORD: {{ DB_PASSWORD }}
+volumes:
+  db_data:

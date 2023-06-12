@@ -1,0 +1,8 @@
+---
+- name: Install Letsencrypt
+  hosts: all
+  remote_user: appuser
+  become: true
+
+  roles:
+    - letsencrypt

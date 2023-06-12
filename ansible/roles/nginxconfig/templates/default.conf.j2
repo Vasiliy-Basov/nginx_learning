@@ -1,0 +1,70 @@
+server {
+    # На каком порту nginx будет слушать
+    listen 80;
+    # Здесь прописываем доменное имя нашего сервера
+    server_name {{ domain_name }} www.{{ domain_name }};
+    return 301 https://{{ domain_name }}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+
+    server_name www.{{ domain_name }};
+    return 301 https://{{ domain_name }}$request_uri;
+
+    ssl_certificate /etc/letsencrypt/certs/{{domain_name}}-fullchain.crt;
+    ssl_certificate_key /etc/letsencrypt/keys/{{domain_name}}.key;
+}
+
+server {
+    listen 443 ssl;
+
+    server_name {{ domain_name }};
+    # Должен быть прописан здесь, отсюда будет браться переменная $document_root в fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    root /usr/share/nginx/html;
+    # Локация где хранится сайт можем добавим index.php
+    location / {
+        index index.php index.html index.htm;
+    }
+
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   /usr/share/nginx/html;
+    }
+
+    ssl_certificate /etc/letsencrypt/certs/{{domain_name}}-fullchain.crt;
+    ssl_certificate_key /etc/letsencrypt/keys/{{domain_name}}.key;
+
+    # настройки для php
+    # В данном случае, location ~ [^/]\.php(/|$) задает регулярное выражение для сопоставления URL-адресов, оканчивающихся на .php и за которыми может следовать либо слэш /, либо конец строки. 
+    # Это позволяет обрабатывать запросы как для файлов в корневом каталоге, так и для файлов в подкаталогах.    
+    location ~ [^/]\.php(/|$) {
+        # fastcgi_split_path_info ^(.+?\.php)(/.*)$; является директивой, которая разбивает путь к файлу PHP на две части: путь к файлу и дополнительную информацию. 
+        # Например, для запроса /example.php/foo/bar, путь к файлу будет /example.php, а дополнительная информация будет /foo/bar.
+        # Далее, if (!-f $document_root$fastcgi_script_name) проверяет, существует ли фактический файл на сервере, соответствующий запрошенному пути к скрипту. 
+        # Если файл не существует, выполняется инструкция return 404;, что возвращает клиенту ошибку "404 Not Found".
+        fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+        if (!-f $document_root$fastcgi_script_name) {
+            return 404;
+        }
+        #NOTE: You should have "cgi.fix_pathinfo = 0;" in php.ini
+        include fastcgi_params;
+        # По умолчанию значение fastcgi_intercept_errors установлено в off, 
+        # что означает, что сервер Nginx не будет перехватывать ошибки FastCGI и будет передавать их напрямую клиенту в виде HTTP-ответа.
+        fastcgi_intercept_errors on;
+        # Если файл index.php присутствует в запрашиваемой директории, сервер Nginx будет обрабатывать этот файл и возвращать его результаты
+        # Если index.php отсутствует, сервер может перейти к следующему файлу, указанному в списке index, если таковые имеются (например, index.html, index.htm, и т.д.), или вернуть ошибку "404 Not Found".
+        fastcgi_index index.php;
+        # У сервера nginx должны быть права на php7.4-fpm.sock иначе ничего обрабатываться не будет 
+        fastcgi_pass unix:/run/php/php7.4-fpm.sock;
+        # Переменная окружения HTTP_PROXY используется для указания прокси-сервера, через который должны отправляться HTTP-запросы. 
+        # Установка значения "" (пустая строка) для HTTP_PROXY означает, что не будет использоваться никакой прокси-сервер при отправке запросов к FastCGI-серверу.
+        fastcgi_param HTTP_PROXY "";
+        # Устанавливает значение переменной окружения SCRIPT_FILENAME для передачи в FastCGI-сервер. Переменная окружения SCRIPT_FILENAME представляет путь к запрашиваемому скрипту php на файловой системе сервера.
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    location ~ /\.ht {
+        deny  all;
+    }
+}
