@@ -49,7 +49,15 @@ SHOW DATABASES;
 SELECT user,authentication_string,plugin,host FROM mysql.user;
 # Если у нас plugin auth_socket то можем поменять на mysql_native_password
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'our_very_strong_passsword';
+# Посмотреть таблицу с пользователями
+SELECT User, Host, Password FROM mysql.user;
+# Дать возможность подключаться с помощью root извне.
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'ВАШ_НОВЫЙ_ПАРОЛЬ' WITH GRANT OPTION;
 ```
+```bash
+mysql -h 127.0.0.1 -P 3306 -u root -p
+```
+
 Настройка mariadb
 ```bash
 mysql_secure_installation # запуск внутри контейнера
@@ -59,7 +67,7 @@ mysql_secure_installation # запуск внутри контейнера
 Конфиг nginx
 в нем прописываем где брать конфиги сайтов
 ```
-/etc/nginx.nginx.conf
+/etc/nginx/nginx.conf
 ```
 
 Где находится дефолт конфиг сайта
@@ -144,4 +152,103 @@ ps aux | grep nginx
 ### root   /usr/share/nginx/html; помещать в секцию server или менять $document_root$fastcgi_script_name
 ```
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+```
+
+# Install php myadmin
+```bash
+apt-get update
+apt-get install phpmyadmin
+```
+```
+Configuration phpmyadmin
+Нажимаем tab для отмены выбора apache потому что мы используем nginx
+```
+```
+Configuring phpadmin
+Нажимаем No если mariadb в контейнере.
+```
+
+Вносим в конфиг наш сервер mariadb в docker контейнере
+```bash
+nano /etc/phpmyadmin/config.inc.php
+```
+Добавляем конфигурацию перед
+/*
+ * End of servers configuration
+ */
+
+```
+/**
+ * First server
+ */
+$i++;
+
+$cfg['Servers'][$i]['host'] = '127.0.0.1'; // Замените 'localhost' на IP-адрес или имя хоста базы данных
+$cfg['Servers'][$i]['port'] = '3306'; // Убедитесь, что порт соответствует порту базы данных
+```
+
+Делаем линк phpadmin в каталог сайтов nginx
+```bash
+ln -s /usr/share/phpmyadmin /var/www/html
+```
+Команда phpenmod mcrypt используется для включения расширения mcrypt в PHP.
+Расширение mcrypt предоставляет функциональность для шифрования и дешифрования данных в PHP. Оно включает различные алгоритмы шифрования, такие как AES, DES, Blowfish и другие.
+```bash
+phpenmod mcrypt
+```
+
+Перезапускаем
+```
+systemctl restart php7.4-fpm
+```
+Заходим
+https://nginx.basov.world/phpmyadmin/index.php
+
+Роль ansible phpmyadmin делает тоже
+
+## Делаем дополнительную защиту для phpmyadmin
+меняем имя каталога /var/www/html/phpmyadmin на нестандартное
+
+Генерируем шифрованный пароль с помощью openssl для добавления этого пароля в nginx
+```bash
+openssl passwd
+```
+или с помощью apache2-utils (добаляем пароль для пользователя user)
+```bash
+htpasswd -c /etc/nginx/.htpasswd user
+```
+Далее нужно прописать эти настройки в конфигурации сайта nginx чтобы был парольный вход
+```
+        auth_basic "Restricted Content";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+```
+
+## Устанавливаем wordpress
+
+Готовим базу данных
+```sql
+CREATE DATABASE wordpress DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci
+```
+
+Или меняем если база уже создана
+```sql
+USE wordpress;
+ALTER DATABASE wordpress
+CHARACTER SET utf8
+COLLATE utf8_unicode_ci;
+```
+Посмотреть текущие значения
+```sql
+SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME
+FROM information_schema.SCHEMATA
+WHERE SCHEMA_NAME = 'wordpress';
+```
+Даем права пользователю к базе
+```sql
+GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'%';
+FLUSH PRIVILEGES;
+```
+Меняем пароль пользователю
+```sql
+ALTER USER 'wordpress'@'%' IDENTIFIED BY 'really_strong_password';
 ```

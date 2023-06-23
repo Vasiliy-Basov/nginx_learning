@@ -1,8 +1,29 @@
 ---
     - name: Install Prerequisites
-      apt: name={{ item }} update_cache=yes state=latest force_apt_get=yes
-      loop: [ 'aptitude' ]
-
+      ansible.builtin.apt: 
+        name: "{{ item }}"
+        update_cache: true 
+        state: latest
+        force_apt_get: true
+      with_items:
+        - aptitude
+      
     - name: Install LEMP Packages
-      apt: name={{ item }} update_cache=yes state=latest
-      loop: ['python3-pymysql', 'php-fpm', 'php-mysql' ]
+      ansible.builtin.apt: 
+        name: "{{ item }}"
+        update_cache: true 
+        state: latest
+      with_items:
+        - python3-pymysql
+        - php-fpm
+        - php-mysql
+        - apache2-utils
+        - php-curl
+        - php-gd
+        - php-intl
+        - php-mbstring
+        - php-soap
+        - php-xml
+        - php-xmlrpc
+        - php-zip
+      notify: Restart php7.4-fpm

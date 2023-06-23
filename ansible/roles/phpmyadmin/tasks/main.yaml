@@ -1,0 +1,58 @@
+---
+- name: Update apt cache.
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 600
+  when: ansible_os_family == 'Debian'
+
+- name: Ensure phpMyAdmin is installed.
+  ansible.builtin.apt:
+    name: phpmyadmin
+    state: present
+
+- name: Add default username and password for MySQL connection.
+  lineinfile: >
+    dest={{ phpmyadmin_config_file }}
+    state=present
+    regexp="^.+\['{{ item.key }}'\].+$"
+    line="$cfg['Servers'][$i]['{{ item.key }}'] = '{{ item.value }}';"
+    insertbefore="^\?>"
+    mode=0644
+  with_items:
+    - key: host
+      value: "{{ phpmyadmin_mysql_host }}"
+    # - key: port
+    #  value: "{{ phpmyadmin_mysql_port }}"
+    #- key: socket
+    #  value: "{{ phpmyadmin_mysql_socket }}"
+    - key: connect_type
+      value: "{{ phpmyadmin_mysql_connect_type }}"
+    #- key: user
+    #  value: "{{ phpmyadmin_mysql_user }}"
+    #- key: password
+    #  value: "{{ phpmyadmin_mysql_password }}"
+
+- name: Link phpMyAdmin to nginx
+  ansible.builtin.file:
+    src: /usr/share/phpmyadmin
+    dest: /var/www/html/{{ phpmyadmin_path }}
+    state: link
+    force: true
+  notify: Restart Nginx
+
+- name: enable php mcrypt module
+  shell: phpenmod mcrypt
+
+- name: Restart php-fpm
+  ansible.builtin.systemd:
+    name: php7.4-fpm
+    state: restarted
+
+- name: Ensure phpMyAdmin is running.
+  uri:
+    url: "http://127.0.0.1/{{ phpmyadmin_path }}/"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 60
+  delay: 1

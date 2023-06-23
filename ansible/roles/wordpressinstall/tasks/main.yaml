@@ -1,0 +1,44 @@
+---
+- name: Download WordPress package
+  ansible.builtin.get_url:
+    url: https://wordpress.org/latest.tar.gz
+    dest: /tmp/latest.tar.gz
+
+- name: Create {{ wordpress_path }}
+  ansible.builtin.file:
+    path: "{{ wordpress_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0777'
+
+- name: Extract WordPress package
+  ansible.builtin.unarchive:
+    src: /tmp/latest.tar.gz
+    dest: "{{ wordpress_path }}"
+    remote_src: true
+    extra_opts: '--strip-components=1'
+
+- name: get API information for wp-config
+  uri:
+    url: "https://api.wordpress.org/secret-key/1.1/salt/"
+    return_content: true
+    method: GET
+  register: wp_salt
+
+- name: Copy WordPress config file
+  template: 
+    src: wp-config.php.j2
+    dest: "{{ wordpress_path }}/wp-config.php"
+    owner: root
+    group: root
+    mode: '0777'
+
+- name: Set directory and files permissions
+  ansible.builtin.file:
+    path: "{{ wordpress_path }}"
+    owner: www-data
+    group: www-data
+    mode: '0777'
+    recurse: yes
+    state: directory

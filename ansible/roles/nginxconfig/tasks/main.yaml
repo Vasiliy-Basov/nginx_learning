@@ -33,6 +33,15 @@
     mode: '0644'
   notify: Restart Nginx
 
+- name: Copy file for secure phpmyadmin connection
+  ansible.builtin.template:
+    src: pma_pass.j2
+    dest: /etc/nginx/pma_pass
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Nginx
+
 - name: Create symbolic link {{ domain_name }}.conf
   ansible.builtin.file:
     src: /etc/nginx//sites-available/{{ domain_name }}.conf
@@ -46,7 +55,6 @@
     name: nginx
     groups: www-data
     append: yes
-
 
 - name: Ensure Nginx service is running
   ansible.builtin.service:

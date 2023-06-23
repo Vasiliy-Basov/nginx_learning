@@ -5,3 +5,6 @@
 *.lock.hcl
 *.env
 *ansible/roles/mariadbdocker/defaults/main.yml
+ansible/group_vars/all
+ansible/roles/buluma.phpmyadmin
+ansible/roles/nginxinc.nginx

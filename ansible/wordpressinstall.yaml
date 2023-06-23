@@ -1,0 +1,8 @@
+---
+- name: Install and config wordpress
+  hosts: all
+  remote_user: appuser
+  become: true
+
+  roles:
+    - wordpressinstall
