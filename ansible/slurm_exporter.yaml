@@ -1,0 +1,10 @@
+---
+- name: Config Slurm_Exporter
+  hosts: all
+  remote_user: appuser
+  become: true
+  become_user: root
+
+  roles:
+    - install_go
+    - slurm_exporter

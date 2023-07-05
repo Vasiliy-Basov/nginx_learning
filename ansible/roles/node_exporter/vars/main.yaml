@@ -1,0 +1,2 @@
+telemetry_path: "--web.telemetry-path=/metrics"
+metrics_file: "--collector.textfile.directory=/tmp/node_exporter"

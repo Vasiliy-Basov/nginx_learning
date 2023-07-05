@@ -1,0 +1,9 @@
+---
+- name: Config Blackbox_Exporter
+  hosts: all
+  remote_user: appuser
+  become: true
+  become_user: root
+
+  roles:
+    - blackbox_exporter

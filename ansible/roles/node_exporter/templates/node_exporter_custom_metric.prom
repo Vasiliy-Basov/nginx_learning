@@ -1,0 +1,2 @@
+#TYPE slurm_demo_metric counter
+slurm_demo_metric 100

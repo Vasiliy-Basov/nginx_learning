@@ -78,3 +78,33 @@ resource "google_dns_record_set" "www_nginx_basov_world" {
   managed_zone = "basov-world"
   rrdatas     = ["nginx.basov.world."]
 }
+
+resource "google_compute_firewall" "firewall_node_exporter" {
+  name        = "allow-node-exporter"
+  network     = "default"
+  priority    = 65534
+  description = "Allow Node Exporter from anywhere"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9100"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  source_tags = ["nginx"]
+}
+
+resource "google_compute_firewall" "firewall_blackbox_exporter" {
+  name        = "allow-blackbox-exporter"
+  network     = "default"
+  priority    = 65534
+  description = "Allow blackbox Exporter from anywhere"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9115"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  source_tags = ["nginx"]
+}

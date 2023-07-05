@@ -1,0 +1,97 @@
+- name: create prometheus system group
+  group:
+    name: "{{ group }}"
+    system: true
+    state: present
+
+- name: Create "{{ user }}" user
+  become: true
+  ansible.builtin.user:
+    name: "{{ user }}"
+    group: "{{ group }}"
+    createhome: false
+    comment: "Prometheus server user"
+    home: "{{ prometheus_db_dir }}"
+    # ограничивает возможности взаимодействия с системой для пользователя через командную оболочку.
+    shell: /bin/false
+
+- name: download prometheus
+  get_url:
+    url: https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz
+    dest: /tmp
+
+- name: unarchive prometheus
+  unarchive:
+    remote_src: true
+    src: /tmp/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz
+    dest: /tmp
+    
+- name: move prometheus to /usr/local/bin
+  copy:
+    src: /tmp/prometheus-{{ prometheus_version }}.linux-amd64/
+    dest: "{{ prometheus_binary_install_dir }}"
+    remote_src: true
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0644'
+
+- name: Create /etc/prometheus directory for config
+  ansible.builtin.file:
+    path: /etc/prometheus
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0770'
+
+- name: create prometheus.yml config
+  template:
+    src: prometheus.yml
+    dest: /etc/prometheus/prometheus.yml
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0640'
+    validate: "{{ prometheus_binary_install_dir }}/promtool check config %s"
+  notify: Restart prometheus
+
+- name: Create "{{ prometheus_db_dir }}" directory for PromDB
+  ansible.builtin.file:
+    path: "{{ prometheus_db_dir }}"
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0755'
+
+- name: create file with $option template
+  template:
+    src: prometheus
+    dest: /etc/default/prometheus
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0644'
+  notify: Restart prometheus
+
+- name: install unit file to systemd
+  template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart prometheus
+
+- name: configure systemd to use service
+  systemd:
+    daemon_reload: true
+    enabled: true
+    state: started
+    name: prometheus.service
+
+- name: Ensure prometheus is running.
+  uri:
+    url: "http://127.0.0.1:9090/graph"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 5
+  delay: 1
+

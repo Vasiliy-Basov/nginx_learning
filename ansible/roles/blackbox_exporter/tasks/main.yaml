@@ -1,0 +1,69 @@
+- name: download blackbox exporter
+  get_url:
+    url: https://github.com/prometheus/blackbox_exporter/releases/download/v{{ blackbox_exporter_version }}/blackbox_exporter-{{ blackbox_exporter_version}}.linux-amd64.tar.gz
+    dest: /tmp
+
+- name: unarchive blackbox exporter
+  unarchive:
+    remote_src: yes
+    src: /tmp/blackbox_exporter-{{ blackbox_exporter_version}}.linux-amd64.tar.gz
+    dest: /tmp
+
+- name: move blackbox exporter to /usr/local/bin
+  copy:
+    src: /tmp/blackbox_exporter-{{ blackbox_exporter_version}}.linux-amd64/blackbox_exporter
+    dest: /usr/local/bin/blackbox_exporter
+    remote_src: yes
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create /etc/blackbox_exporter/ directory
+  ansible.builtin.file:
+    path: /etc/blackbox_exporter
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: create blackbox.yml in /etc/blackbox_exporter/
+  template:
+    src: blackbox.yml
+    dest: /etc/blackbox_exporter/blackbox.yml
+    owner: root
+    group: root
+    mode: 0755
+  notify: Restart blackbox_exporter
+  
+- name: create file with $option template
+  template:
+    src: blackbox_exporter
+    dest: /etc/default/blackbox_exporter
+    owner: root
+    group: root
+    mode: 0755
+  notify: Restart blackbox_exporter
+
+- name: install unit file to systemd
+  template:
+    src: blackbox_exporter.service.j2
+    dest: /etc/systemd/system/blackbox_exporter.service
+    owner: root
+    group: root
+    mode: 0600
+
+- name: configure systemd to use service
+  systemd:
+    daemon_reload: yes
+    enabled: yes
+    state: started
+    name: blackbox_exporter.service
+
+- name: Ensure blackbox_exporter is running.
+  uri:
+    url: "http://127.0.0.1:9115"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 60
+  delay: 1

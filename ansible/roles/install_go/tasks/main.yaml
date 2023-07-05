@@ -1,0 +1,47 @@
+- name: Remove previous Go installation
+  become: true
+  command: rm -rf /usr/local/go
+  ignore_errors: yes
+
+- name: Download Go binary
+  get_url:
+    url: https://go.dev/dl/go{{ go_version }}.linux-amd64.tar.gz
+    dest: /tmp/go{{ go_version }}.linux-amd64.tar.gz
+
+- name: Extract Go binary
+  unarchive:
+    src: /tmp/go{{ go_version }}.linux-amd64.tar.gz
+    dest: /usr/local
+    remote_src: true
+    creates: /usr/local/go
+
+- name: Set Go environment variables
+  template:
+    src: "{{ item }}.j2"
+    dest: "/etc/profile.d/{{ item }}"
+  with_items:
+    - "go-path.sh"
+
+- name: Clone prometheus/client_golang repository
+  git:
+    repo: https://github.com/prometheus/client_golang
+    dest: /tmp/client_golang
+
+- name: Install prometheus/client_golang
+  become: yes
+  become_user: root
+  command:
+    cmd: /usr/local/go/bin/go install
+    chdir: /tmp/client_golang/prometheus
+
+- name: Clone Sirupsen/logrus repository
+  git:
+    repo: https://github.com/Sirupsen/logrus
+    dest: /tmp/logrus
+
+- name: Install Sirupsen/logrus
+  become: yes
+  become_user: root
+  command:
+    cmd: /usr/local/go/bin/go install
+    chdir: /tmp/logrus

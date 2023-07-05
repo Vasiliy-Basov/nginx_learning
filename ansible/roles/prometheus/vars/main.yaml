@@ -1,0 +1,6 @@
+prometheus_yml_path: "--config.file=/etc/prometheus/prometheus.yml"
+promdb_path: "--storage.tsdb.path=/var/lib/prometheus/"
+prometheus_binary_install_dir: /usr/local/bin/prometheus
+user: prometheus
+group: prometheus
+prometheus_db_dir: /var/lib/prometheus

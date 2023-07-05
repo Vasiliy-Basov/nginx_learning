@@ -1,0 +1,14 @@
+- name: create slurm_exporter.go
+  template:
+    src: slurm_exporter.go
+    dest: /usr/local/bin/slurm_exporter.go
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Run slurm_exporter.go
+  become: yes
+  become_user: root
+  command:
+    cmd: /usr/local/go/bin/go run slurm_exporter.go
+    chdir: /usr/local/bin

@@ -1,0 +1,61 @@
+- name: download node exporter
+  get_url:
+    url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
+    dest: /tmp
+- name: unarchive node exporter
+  unarchive:
+    remote_src: yes
+    src: /tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
+    dest: /tmp
+- name: move node exporter to /usr/local/bin
+  copy:
+    src: /tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter
+    dest: /usr/local/bin/node_exporter
+    remote_src: yes
+    owner: root
+    group: root
+    mode: 0755
+- name: Create /tmp/node_exporter/ directory
+  ansible.builtin.file:
+    path: /tmp/node_exporter
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+- name: create file node_exporter_custom_metric.prom with metrics
+  template:
+    src: node_exporter_custom_metric.prom
+    dest: /tmp/node_exporter/node_exporter_custom_metric.prom
+    owner: root
+    group: root
+    mode: 0755
+  notify: Restart node_exporter
+- name: create file with $option template
+  template:
+    src: node_exporter
+    dest: /etc/default/node_exporter
+    owner: root
+    group: root
+    mode: 0755
+  notify: Restart node_exporter
+- name: install unit file to systemd
+  template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: 0600
+- name: configure systemd to use service
+  systemd:
+    daemon_reload: yes
+    enabled: yes
+    state: started
+    name: node_exporter.service
+- name: Ensure Nodeexporter is running.
+  uri:
+    url: "http://127.0.0.1:9100"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 60
+  delay: 1

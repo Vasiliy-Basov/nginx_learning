@@ -1,0 +1,8 @@
+---
+- name: Install and config prometheus
+  hosts: all
+  remote_user: appuser
+  become: true
+
+  roles:
+    - prometheus
