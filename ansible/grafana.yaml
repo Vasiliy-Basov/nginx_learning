@@ -1,0 +1,9 @@
+---
+- name: Install Grafana
+  hosts: all
+  remote_user: appuser
+  become: true
+  become_user: root
+
+  roles:
+    - grafana

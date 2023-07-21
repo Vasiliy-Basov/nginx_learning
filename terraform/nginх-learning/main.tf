@@ -25,7 +25,7 @@ resource "google_compute_instance" "nginx-learn" {
   zone         = var.zone
   tags         = ["nginx", "http-server", "https-server"]
   labels = {
-    ansible_group = "nginx"  # можем определить labels по ним будет работать ansible
+    ansible_group = "prom"  # можем определить labels по ним будет работать ansible
     env           = "learn"
   }
   boot_disk {
@@ -103,6 +103,96 @@ resource "google_compute_firewall" "firewall_blackbox_exporter" {
   allow {
     protocol = "tcp"
     ports    = ["9115"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  source_tags = ["nginx"]
+}
+
+resource "google_compute_firewall" "firewall_prometheus" {
+  name        = "allow-prometheus"
+  network     = "default"
+  priority    = 65534
+  description = "Allow prometheus from anywhere"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9090"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  source_tags = ["nginx"]
+}
+
+resource "google_compute_firewall" "firewall_pushgateway" {
+  name        = "allow-pushgateway"
+  network     = "default"
+  priority    = 65534
+  description = "Allow pushgateway from anywhere"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9091"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  source_tags = ["nginx"]
+}
+
+resource "google_compute_firewall" "firewall_alertmanager" {
+  name        = "allow-alertmanager"
+  network     = "default"
+  priority    = 65534
+  description = "Allow alertmanager from anywhere"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9093"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  source_tags = ["nginx"]
+}
+
+resource "google_compute_firewall" "firewall_smtp_outbound" {
+  name        = "allow-smtp-outbound"
+  network     = "default"
+  priority    = 65534
+  description = "Allow outbound SMTP traffic from nginx servers"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["465"]
+  }
+
+  source_tags      = ["nginx"]
+  destination_ranges = ["0.0.0.0/0"]
+}
+
+resource "google_compute_firewall" "firewall_alertmanager_cluster" {
+  name        = "allow-alertmanager-cluster"
+  network     = "default"
+  priority    = 65534
+  description = "Allow alertmanager cluster from anywhere"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9094"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  source_tags = ["nginx"]
+}
+
+resource "google_compute_firewall" "firewall_grafana" {
+  name        = "allow-grafana"
+  network     = "default"
+  priority    = 65534
+  description = "Allow grafana from anywhere"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["3000"]
   }
 
   source_ranges = ["0.0.0.0/0"]

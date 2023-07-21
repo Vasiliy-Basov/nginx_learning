@@ -1,0 +1,6 @@
+OPTIONS="--web.listen-address=:9091 \
+  --web.telemetry-path=/metrics \
+  --persistence.file=/tmp/metric.store \
+  --persistence.interval=5m \
+  --log.level=info \
+  --log.format=json"

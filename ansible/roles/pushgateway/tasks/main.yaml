@@ -1,0 +1,69 @@
+- name: create pushgateway system group
+  group:
+    name: "{{ group }}"
+    system: true
+    state: present
+
+- name: Create "{{ user }}" user
+  become: true
+  ansible.builtin.user:
+    name: "{{ user }}"
+    group: "{{ group }}"
+    createhome: false
+    comment: "PushGateway server user"
+    # ограничивает возможности взаимодействия с системой для пользователя через командную оболочку.
+    shell: /bin/false
+
+- name: download pushgateway
+  get_url:
+    url: https://github.com/prometheus/pushgateway/releases/download/v{{ pushgateway_version }}/pushgateway-{{ pushgateway_version }}.linux-amd64.tar.gz
+    dest: /tmp
+
+- name: unarchive pushgateway
+  unarchive:
+    remote_src: true
+    src: /tmp/pushgateway-{{ pushgateway_version }}.linux-amd64.tar.gz
+    dest: /tmp
+    
+- name: move pushgateway to /usr/local/bin
+  copy:
+    src: /tmp/pushgateway-{{ pushgateway_version }}.linux-amd64/pushgateway
+    dest: "{{ pushgateway_binary_install_dir }}/pushgateway"
+    remote_src: true
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0774'
+
+- name: create file with $option template for pushgateway
+  template:
+    src: pushgateway
+    dest: /etc/default/pushgateway
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0644'
+  notify: Restart pushgateway
+
+- name: install unit file to systemd
+  template:
+    src: pushgateway.service.j2
+    dest: /etc/systemd/system/pushgateway.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart pushgateway
+
+- name: configure systemd to use service
+  systemd:
+    daemon_reload: true
+    enabled: true
+    state: started
+    name: pushgateway.service
+
+- name: Ensure pushgateway is running.
+  uri:
+    url: "http://127.0.0.1:9091"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 5
+  delay: 1

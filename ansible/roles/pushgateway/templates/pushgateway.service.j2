@@ -1,0 +1,16 @@
+[Unit]
+Description=Prometheus Pushgateway
+Documentation=https://github.com/prometheus/pushgateway
+
+[Service]
+Restart=always
+User={{ user }}
+Group={{ group }}
+EnvironmentFile=/etc/default/pushgateway
+ExecStart={{ pushgateway_binary_install_dir }}/pushgateway $OPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+TimeoutStopSec=20s
+SendSIGKILL=no
+
+[Install]
+WantedBy=multi-user.target

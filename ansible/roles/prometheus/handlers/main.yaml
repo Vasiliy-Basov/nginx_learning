@@ -3,3 +3,8 @@
   ansible.builtin.systemd:
     name: prometheus
     state: restarted
+
+- name: Reload prometheus
+  ansible.builtin.systemd:
+    name: prometheus
+    state: reloaded

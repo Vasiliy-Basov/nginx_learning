@@ -1,0 +1,8 @@
+---
+- name: Install and config alertmanager
+  hosts: all
+  remote_user: appuser
+  become: true
+
+  roles:
+    - alertmanager

@@ -1,5 +1,5 @@
 - name: create prometheus system group
-  group:
+  ansible.builtin.group:
     name: "{{ group }}"
     system: true
     state: present
@@ -16,42 +16,83 @@
     shell: /bin/false
 
 - name: download prometheus
-  get_url:
+  ansible.builtin.get_url:
     url: https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz
     dest: /tmp
 
 - name: unarchive prometheus
-  unarchive:
+  ansible.builtin.unarchive:
     remote_src: true
     src: /tmp/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz
     dest: /tmp
     
 - name: move prometheus to /usr/local/bin
-  copy:
+  ansible.builtin.copy:
     src: /tmp/prometheus-{{ prometheus_version }}.linux-amd64/
     dest: "{{ prometheus_binary_install_dir }}"
     remote_src: true
     owner: "{{ user }}"
     group: "{{ group }}"
-    mode: '0644'
+    mode: '0774'
 
-- name: Create /etc/prometheus directory for config
+- name: Create {{ prometheus_config_dir }} directory for config
   ansible.builtin.file:
-    path: /etc/prometheus
+    path: "{{ prometheus_config_dir }}"
     state: directory
     owner: "{{ user }}"
     group: "{{ group }}"
-    mode: '0770'
+    mode: '0774'
 
-- name: create prometheus.yml config
-  template:
-    src: prometheus.yml
-    dest: /etc/prometheus/prometheus.yml
+- name: create rules.yml config
+  ansible.builtin.template:
+    src: rules.yml
+    dest: "{{ prometheus_config_dir }}/rules.yml"
     owner: "{{ user }}"
     group: "{{ group }}"
-    mode: '0640'
+    mode: '0774'
+    validate: "{{ prometheus_binary_install_dir }}/promtool check rules %s"
+  notify: Reload prometheus
+  tags: prometheus_config
+
+- name: create rules_alert.yml config
+  ansible.builtin.template:
+    src: rules_alert.yml
+    dest: "{{ prometheus_config_dir }}/rules_alert.yml"
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0774'
+    validate: "{{ prometheus_binary_install_dir }}/promtool check rules %s"
+  notify: Reload prometheus
+  tags: prometheus_config
+
+- name: Create {{ prometheus_config_dir }}/sd directory for service discovery
+  ansible.builtin.file:
+    path: "{{ prometheus_config_dir }}/sd"
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0774'
+
+- name: create node_exporter.yml config for service discovery from file
+  ansible.builtin.template:
+    src: node_exporter.yml
+    dest: "{{ prometheus_config_dir }}/sd/node_exporter.yml"
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0774'
+  notify: Reload prometheus
+  tags: prometheus_config
+
+- name: create prometheus.yml config
+  ansible.builtin.template:
+    src: prometheus.yml
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0774'
     validate: "{{ prometheus_binary_install_dir }}/promtool check config %s"
-  notify: Restart prometheus
+  notify: Reload prometheus
+  tags: prometheus_config
 
 - name: Create "{{ prometheus_db_dir }}" directory for PromDB
   ansible.builtin.file:
@@ -62,7 +103,7 @@
     mode: '0755'
 
 - name: create file with $option template
-  template:
+  ansible.builtin.template:
     src: prometheus
     dest: /etc/default/prometheus
     owner: "{{ user }}"
@@ -71,7 +112,7 @@
   notify: Restart prometheus
 
 - name: install unit file to systemd
-  template:
+  ansible.builtin.template:
     src: prometheus.service.j2
     dest: /etc/systemd/system/prometheus.service
     owner: root
@@ -80,18 +121,17 @@
   notify: Restart prometheus
 
 - name: configure systemd to use service
-  systemd:
+  ansible.builtin.systemd:
     daemon_reload: true
     enabled: true
     state: started
     name: prometheus.service
 
 - name: Ensure prometheus is running.
-  uri:
+  ansible.builtin.uri:
     url: "http://127.0.0.1:9090/graph"
     status_code: 200
   register: result
   until: result.status == 200
   retries: 5
   delay: 1
-

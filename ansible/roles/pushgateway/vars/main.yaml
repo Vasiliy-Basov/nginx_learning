@@ -1,0 +1,3 @@
+pushgateway_binary_install_dir: /usr/local/bin
+user: pushgateway
+group: pushgateway

@@ -1,0 +1,50 @@
+# Чтобы эта настройка сработала нужно настроить пароль для приложений в настройках безопасности yandex
+# также нужно поставть Разрешить доступ к почтовому ящику с помощью почтовых клиентов С сервера imap.yandex.ru по протоколу IMAP
+global:
+  smtp_smarthost: smtp.yandex.ru:465
+  smtp_from: 'baggurdprom@yandex.ru'
+  smtp_auth_username: 'baggurdprom@yandex.ru'
+  smtp_auth_password: '{{ yandex_password }}'
+
+route:
+  # объединяем связанные уведомления в одну группу. Уведомления будут группироваться по значениям меток alertname (имя алерта) и service (сервис)
+  group_by: ['alertname', 'service']
+  # Время ожидания (в секундах) для формирования группы уведомлений
+  group_wait: 30s
+  # параметр определяет интервал (в минутах) между отправкой групп уведомлений
+  group_interval: 5m
+  # параметр определяет интервал (в часах) повторной отправки уведомлений, если состояние алерта не изменяется
+  repeat_interval: 1h
+  # Этот параметр указывает, какой получатель (receiver) будет использоваться для отправки уведомлений
+  receiver: team-monitoring
+
+  # Это правило указывает, что уведомления, которые имеют метку service со значением "prom", должны быть отправлены на получателя (receiver) с именем team-ops 
+  routes:
+  - receiver: 'team-ops'
+    matchers:
+    - service="prom"
+  # Это правило указывает, что уведомления, которые имеют метку severity со значением "warnings", "error" или "critical", должны быть отправлены на получателя (receiver) с именем team-monitoring
+  - receiver: 'team-monitoring'
+    matchers:
+    - severity=~"warnings|error|critical"
+
+receivers:
+- name: 'team-ops'
+  email_configs:
+  - to: 'baggurd@mail.ru'
+    send_resolved: true
+    require_tls: false
+- name: 'team-monitoring'
+  email_configs:
+  - to: 'dramikon@mail.ru'
+    send_resolved: true 
+
+# Подавление уведомлений
+inhibit_rules:
+  # Это правило подавления будет применяться, когда уведомление имеет источник (source) с метками severity: 'critical' и alertname: PrometheusConfigurationReload, 
+  # и при этом существует цель (target) с меткой severity: 'error'. В таком случае, уведомление, соответствующее этим условиям, не будет отправлено, и оно будет подавлено.
+  - source_match:
+      severity: 'critical'
+      alertname: PrometheusConfigurationReload
+    target_match:
+      severity: 'error'

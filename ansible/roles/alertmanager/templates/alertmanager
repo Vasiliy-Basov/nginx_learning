@@ -1,0 +1,1 @@
+OPTIONS="--config.file={{ alertmanager_config_dir }}/alertmanager.yml --storage.path={{ alertmanager_db_dir }}/ --cluster.peer {{ second_alertmanager_for_cluster }}:9094"

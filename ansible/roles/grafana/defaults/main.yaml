@@ -1,0 +1,2 @@
+grafana_apt_repo: "deb https://apt.grafana.com stable main"
+grafana_apt_key: "https://apt.grafana.com/gpg.key"

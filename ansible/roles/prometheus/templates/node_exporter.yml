@@ -1,0 +1,4 @@
+- targets:
+  - prometheus-2.basov.world:9100
+  labels:
+    sd: file

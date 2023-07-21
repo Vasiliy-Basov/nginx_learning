@@ -1,0 +1,8 @@
+user: alertmanager
+group: alertmanager
+alertmanager_binary_install_dir: /usr/local/bin/alertmanager
+alertmanager_config_dir: /etc/alertmanager
+alertmanager_db_dir: /var/lib/alertmanager
+default_options_dir: /etc/default
+# Ip адрес второго сервера в кластере alertmanager если нам нужен кластер.
+second_alertmanager_for_cluster: 10.132.0.3

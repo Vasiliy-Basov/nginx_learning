@@ -1,0 +1,8 @@
+---
+- name: Install and config pushgateway
+  hosts: all
+  remote_user: appuser
+  become: true
+
+  roles:
+    - pushgateway

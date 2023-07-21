@@ -1,0 +1,95 @@
+- name: Create "{{ group }}" system group
+  ansible.builtin.group:
+    name: "{{ group }}"
+    system: true
+    state: present
+
+- name: Create "{{ user }}" user
+  become: true
+  ansible.builtin.user:
+    name: "{{ user }}"
+    group: "{{ group }}"
+    createhome: false
+    comment: "{{ user }} server user"
+    # ограничивает возможности взаимодействия с системой для пользователя через командную оболочку.
+    shell: /bin/false
+
+- name: Download alertmanager
+  ansible.builtin.get_url:
+    url: https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version}}.linux-amd64.tar.gz
+    dest: /tmp
+
+- name: Unarchive alertmanager
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: /tmp/alertmanager-{{ alertmanager_version}}.linux-amd64.tar.gz
+    dest: /tmp
+
+- name: Move alertmanager to "{{ alertmanager_binary_install_dir }}"
+  ansible.builtin.copy:
+    src: /tmp/alertmanager-{{ alertmanager_version}}.linux-amd64/
+    dest: "{{ alertmanager_binary_install_dir }}"
+    remote_src: true
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0774'
+
+- name: Create "{{ alertmanager_config_dir }}" directory for config
+  ansible.builtin.file:
+    path: "{{ alertmanager_config_dir }}"
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0774'
+
+- name: Create alertmanager.yml config
+  ansible.builtin.template:
+    src: alertmanager.yml
+    dest: "{{ alertmanager_config_dir }}/alertmanager.yml"
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0774'
+  notify: Restart alertmanager
+  tags: alertmanager_config
+
+- name: Create "{{ alertmanager_db_dir }}" directory for Alertmanager Data
+  ansible.builtin.file:
+    path: "{{ alertmanager_db_dir }}"
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ group }}"
+    mode: '0755'
+
+- name: Create file with $option template
+  ansible.builtin.template:
+    src: alertmanager
+    dest: "{{ default_options_dir }}/alertmanager"
+    owner: root
+    group: root
+    mode: 0755
+  notify: Restart alertmanager
+
+- name: Install unit file to systemd
+  ansible.builtin.template:
+    src: alertmanager.service.j2
+    dest: /etc/systemd/system/alertmanager.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart alertmanager
+
+- name: Configure systemd to use service
+  ansible.builtin.systemd:
+    daemon_reload: true
+    enabled: true
+    state: started
+    name: alertmanager.service
+
+- name: Ensure alertmanager is running.
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9093"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 5
+  delay: 1

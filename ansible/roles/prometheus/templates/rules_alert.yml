@@ -1,0 +1,59 @@
+groups:
+# это имя для группы правил. Оно должно быть уникальным и является обязательным
+- name: PrometheusGroup
+  rules:
+  # Имя алерта
+  - alert: PrometheusConfigurationReload
+    # задает условие, и если оно истинное, то начинается обработка alert.
+    # Проверяем быыла ли последняя перезагрузка конфигурации успешной.
+    expr: prometheus_config_last_reload_successful != 1
+    # Задержка с момента выполнения условий для срабатывания до начала обработки.
+    # Пока условие for не выполнено, данные в Alertmanager не отправляются.
+    for: 1m
+    # Задет произвольный набор labels для alert. ​NB! ​alert labels никак не связаны с
+    # metrics labels и используются для обработки алертов на стороне Alertmanager.
+    labels:
+      severity: critical
+      service: prom
+    # набор дополнительных произвольных меток (ключ: значение), которые
+    # передаются вместе с алертом. В отличие от меток, которые передаются в labels, метки из
+    # annotations не используются для группировки и маршрутизации уведомлений.  
+    annotations:
+      # {{ '{{ $labels.instance }}' }} - Значение метки instance, метка instance обычно предоставляется автоматически Prometheus'ом 
+      summary: "Prometheus configuration reload (instance {{ '{{ $labels.instance }}' }})"
+      # {{ '{{ $value }}' }} - . В момент срабатывания алерта, Prometheus заполняет эту переменную фактическим числовым значением метрики. Например, если метрика, связанная с алертом, имеет значение 10, то {{ '{{ \$value }}' }} будет заменено на число 10 в тексте алерта.
+      # {{ '{{ $labels }}' }} - Эта переменная будет заменена на набор меток, связанных с метрикой, которая вызвала срабатывание алерта. В момент срабатывания алерта, Prometheus заполняет эту переменную актуальными значениями меток. Набор меток будет представлен в виде списка ключ-значение. Например, если метрика связана с метками {instance="prometheus-server-1", job="prometheus"}, то {{ '{{\$labels }}' }} будет заменено на текстовую строку "{instance=\"prometheus-server-1\", job=\"prometheus\"}" в тексте алерта.
+      description: "Prometheus configuration reload error\n VALUE = {{ '{{ $value }}' }}\n LABELS: {{ '{{ $labels }}' }}"
+
+- name: NodeExporterGroup
+  rules:
+  - alert: ExporterDown
+    # Означает что цель стала недоступной
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: error
+      service: prom
+    annotations:
+      summary: "Exporter down (instance {{ '{{ $labels.instance }}' }})"
+      description: "Prometheus exporter down\n VALUE = {{ '{{ $value }}' }}\n LABELS: {{ '{{ $labels }}' }}"
+
+  - alert: HighCpuLoad
+    # Проверяет превышает ли процент использования CPU (не в режиме "простоя") для каждой инстанции значение 80, и если да, то генерирует алерт.
+    expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU load (instance {{ '{{ $labels.instance }}' }})"
+      description: "CPU load is > 80%\n VALUE = {{ '{{ $value }}' }}\n LABELS: {{ '{{ $labels }}' }}"
+
+  - alert: SystemdServiceCrashed
+    # Данное выражение проверяет, имеются ли на узле какие-либо systemd-юниты (сервисы), находящиеся в состоянии "failed". Если есть хотя бы один юнит в состоянии "failed" и значение метрики node_systemd_unit_state для него равно 1, то условие считается истинным и генерируется алерт.
+    expr: node_systemd_unit_state{state="failed"} == 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "SystemD service crashed (instance {{ '{{ $labels.instance }}' }})"
+      description: "SystemD service crashed\n VALUE = {{ '{{ $value }}' }}\n LABELS: {{ '{{ $labels }}' }}"

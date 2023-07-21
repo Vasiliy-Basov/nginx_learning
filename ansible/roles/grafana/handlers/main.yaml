@@ -1,0 +1,9 @@
+---
+- name: "Restart grafana"
+  ansible.builtin.service:
+    name: grafana-server
+    state: restarted
+  become: true
+  listen: "restart_grafana"
+  tags:
+    - grafana_run

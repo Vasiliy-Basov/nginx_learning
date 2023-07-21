@@ -1,29 +1,81 @@
 # my global config
 global:
+  # Как часто собирать данные.
   scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  # Как часто перечитывается список правил.
   evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # Значение тайм-аут для процесса сбора данных.
   # scrape_timeout is set to the global default (10s).
+  # Метки, добавляем по умолчанию.
+  # external_labels:
+    # [ <labelname>: <labelvalue> ... ]
 
 # Alertmanager configuration
+# Настройка для взаимодействия с Alert Manager.
 alerting:
+  # alert_relabel_configs:
+  #   [ - <relabel_config> ... ]
   alertmanagers:
     - static_configs:
         - targets:
-          # - alertmanager:9093
+          - 'nginx.basov.world:9093'
 
 # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
-rule_files:
+# Файл со списком правил
+# rule_files:
+#   - {{ prometheus_config_dir }}/rules.yml
+#   - {{ prometheus_config_dir }}/rules_alert.yml
   # - "first_rules.yml"
   # - "second_rules.yml"
 
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
+# Конфигурация для сбора данных. Cписок источников данных
 scrape_configs:
-  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
-  - job_name: "prometheus"
+  - job_name: 'federate'
+    honor_labels: true
+    metrics_path: '/federate'
 
+    params:
+      'match[]':
+        - '{job=~"node.+"}'
+    
+    static_configs:
+    - targets:
+      - prometheus-2.basov.world:9090
+      - prometheus-1.basov.world:9090
+  # - job_name: "prometheus"
+  #   static_configs:
+  #   - targets: ["localhost:9090"]
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
     # metrics_path defaults to '/metrics'
     # scheme defaults to 'http'.
+  # - job_name: "static_config"
+  #   static_configs:
+  #   - targets:
+  #     - nginx.basov.world:9100
+  #     - vasiliy.basov.world:9100
+  #     labels:
+  #       # ко всем метрикам будет добавлена метрика sd со значением static.
+  #       sd: static
+  # - job_name: 'file_sd'
+  #   # будет использоваться discovery на основании файлов
+  #   file_sd_configs:
+  #     # список файлов, на основании которых будет производиться service discovery
+  #     - files:
+  #       - {{ prometheus_config_dir }}/sd/*.yml
+  #       refresh_interval: 1m
+  # # Сбор метрик с pushgateway      
+  # - job_name: pushgateway
+  #   honor_labels: true
+  #   static_configs:
+  #   - targets:
+  #     - nginx.basov.world:9091
 
-    static_configs:
-      - targets: ["localhost:9090"]
+# Настройки связанные, с функционалом remoute remote.
+# remote_write:
+#   [ - <remote_write> ... ]
+
+# Настройки связанные, с функционалом remoute remote.
+# remote_read:
+#   [ - <remote_read> ... ]

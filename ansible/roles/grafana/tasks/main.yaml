@@ -1,0 +1,41 @@
+- name: Install apt-transport-https and software-properties-common
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - software-properties-common
+    state: present
+
+- name: "Import Grafana apt gpg key"
+  ansible.builtin.apt_key:
+    url: "{{ grafana_apt_key }}"
+    state: present
+    validate_certs: false
+
+- name: "Add Grafana apt repository"
+  ansible.builtin.apt_repository:
+    repo: "{{ grafana_apt_repo }}"
+    state: present
+    update_cache: true
+
+- name: Install Grafana Enterprise
+  ansible.builtin.apt:
+    name: grafana-enterprise
+    state: present
+    update_cache: true
+  notify: restart_grafana
+
+- name: configure systemd to use service
+  ansible.builtin.systemd:
+    daemon_reload: true
+    enabled: true
+    state: started
+    name: grafana-server.service
+
+- name: Ensure grafana is running.
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:3000/login"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 7
+  delay: 1
