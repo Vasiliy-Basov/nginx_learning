@@ -1,0 +1,66 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "resume.fullname" . }}
+  labels:
+    app: http-server
+    component: resume
+    release: {{ .Release.Name }} # Означает что мы будем применять только к подам из нашего релиза.
+  annotations: 
+    description: "Pod creator is Vasiliy Basov"
+spec:
+  replicas: 2
+  # Замедляем раскрутку, через 10 сек pod будет считаться доступным и принимать трафик
+  minReadySeconds: 10
+  strategy:
+    rollingUpdate:
+      # Сколько подов может быть создано дополнительно
+      maxSurge: 1
+      # Сколько подов будет убиваться
+      maxUnavailable: 1
+    # Обновление будет происходить постепенно (по умолчанию)
+    type: RollingUpdate
+  # Будет действовать только на поды с соответствующими labels
+  selector:
+    matchLabels:
+      app: http-server
+      component: resume
+      release: {{ .Release.Name }} # Означает что мы будем применять только к подам из нашего релиза.
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        app: http-server
+        component: resume
+        release: {{ .Release.Name }} # Означает что мы будем применять только к подам из нашего релиза.
+    spec:
+      containers:
+      - name: resume
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        ports:
+        - name: http
+          protocol: TCP
+          containerPort: {{ .Values.service.containerPort }}
+        # Проверка того что контейнер отвечает если не отвечает то перезапускает его
+        livenessProbe:
+          httpGet:
+            # Путь по которому происходит проверка c учетом httpHeaders
+            path: /
+            httpHeaders:
+            # Имя httpHeader (Host в нашем случае)
+            - name: Host
+              # Значание httpHeader
+              value: {{ .Values.host }}
+            port: {{ .Values.service.containerPort }}
+          initialDelaySeconds: 5
+          # Запросы каждые 5 секунд
+          periodSeconds: 5
+        # Проверка того что контейнер отвечает если не отвечает то перестает слать на него трафик
+        readinessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.service.containerPort}}
+          initialDelaySeconds: 5
+          periodSeconds: 5

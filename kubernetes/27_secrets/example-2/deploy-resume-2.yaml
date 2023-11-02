@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resume-secret-2
+  labels:
+    app: resume-secret-2
+spec:
+  replicas: 1
+  # Замедляем раскрутку, через 10 сек pod будет считаться доступным и принимать трафик
+  minReadySeconds: 10
+  strategy:
+    rollingUpdate:
+      # Сколько подов может быть создано дополнительно
+      maxSurge: 1
+      # Сколько подов будет убиваться
+      maxUnavailable: 1
+    # Обновление будет происходить постепенно (по умолчанию)
+    type: RollingUpdate
+  # Будет действовать только на поды с соответствующими labels
+  selector:
+    matchLabels:
+      app: http-server
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: resume-secret-test
+        image: vasiliybasov/resume:1.0
+        ports:
+        - name: http
+          containerPort: 80
+        # Монтируем в /etc/secrets только кокретное значение username из секрета secret-data создаем внутри контейнера файл по пути my-group/my-username
+        volumeMounts:
+        - name: secrets
+          mountPath: "/etc/secrets"
+      volumes:
+      - name: secrets
+        secret:
+          secretName: secret-data
+          items:
+          - key: username
+            path: my-group/my-username

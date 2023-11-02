@@ -1,0 +1,17 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: victoria
+  labels:
+    grafana_datasource: "true"
+data:
+  victoria.yaml: |-
+    apiVersion: 1
+    datasources:
+      - name: victoria
+        type: prometheus
+        url: http://vm-cluster-victoria-metrics-cluster-vmselect.victoria.svc:8481/select/0/prometheus
+        access: proxy
+        isDefault: false
+...

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuber-headless-service
+spec:
+  clusterIP: None
+  # На основании этого селектора происходит доступ к подам где прописан такой же label
+  selector:
+    app: http-server
+  ports:
+    - name: http
+      protocol: TCP
+      # Порт сервиса
+      port: 80
+      # Порт контейнера (вместо номера порта также можем использовать имя)
+      # Тогда имя должно быть задано в секции spec.ports в Deployment
+      targetPort: 80
+  # Default Type. Ip назначается в пределах кластера. Только внутренний.
+  type: ClusterIP

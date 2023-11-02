@@ -1,0 +1,9 @@
+# Ref: https://kubernetes.io/docs/concepts/configuration/secret/#basic-authentication-secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: basic-auth
+  namespace: monitoring
+data:
+  auth: YWRtaW46JGFwcjEkUXI0VTh5Z3AkREpFcE8zZ0dsUjhaNkVwQ3NLZk9WMAo=
+type: Opaque

@@ -1,0 +1,84 @@
+---
+alertmanager:
+  enabled: false
+
+server:
+  global:
+    scrape_interval: 1m
+    scrape_timeout: 10s
+    evaluation_interval: 1m
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      # Настраиваем сертификат если настроен cert manager
+      kubernetes.io/tls-acme: "true"
+      # Настраиваем Basic Auth
+      nginx.ingress.kubernetes.io/auth-realm: Authentication Required
+      # Секрет берем из namespace monitoring
+      nginx.ingress.kubernetes.io/auth-secret: monitoring/basic-auth
+      nginx.ingress.kubernetes.io/auth-type: basic
+    hosts:
+      - prometheus-federation.k8s.basov.world
+    tls:
+      - secretName: prometheus-federation-server-tls
+        hosts:
+          - prometheus-federation.k8s.basov.world
+
+  persistentVolume:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 700Mi
+    storageClass: "standard-rwo"
+
+  statefulSet:
+    enabled: true
+  # resources:
+  #    limits:
+  #       cpu: 1
+  #       memory: 1024Mi
+  #    requests:
+  #      cpu: 1
+  #      memory: 1024Mi
+  # retention: "1d"
+
+kube-state-metrics:
+  enabled: false
+
+prometheus-node-exporter:
+  enabled: false
+
+prometheus-pushgateway:
+  enabled: false
+
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+            - localhost:9090
+
+        # Сбор всех метрик с другого prometheus сервера.
+      - job_name: federation
+        scrape_interval: 30s
+
+        honor_labels: false
+        metrics_path: '/federate'
+
+        params:
+          # match - является обязательным полем, и в нем указывается фильтр по
+          # labels, какие метрики мы хотим получать. Через этот параметр может быть
+          # ограничен набор метрик, которые забираются с нижестоящего Prometheus
+          match[]:
+            - '{job=~".+"}'
+        static_configs:
+          # указано обращение к Prometheus через имя сервиса
+          - targets:
+            - prometheus-server.monitoring.svc:80
+        # Прописываем аутентификацию если настроена на основном сервере только если подключаемся через доменное имя   
+        # basic_auth:
+        #   username: 'admin'
+        #   password: 'admin'

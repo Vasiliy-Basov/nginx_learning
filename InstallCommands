@@ -1,0 +1,404 @@
+```bash
+# Чтобы посмотреть от какого аккаунта мы подключаемся к GCP:
+gcloud auth list
+
+# Чтобы подключить новый аккаунт
+gcloud auth login
+
+# Что бы сменить активный аккаунт от которого мы подключаемся в GCP:
+gcloud config set account `ACCOUNT`
+
+# Посмотреть какой проект сейчас активный
+gcloud config get-value project
+# или
+gcloud projects list
+
+# Создайте АDC (application-default login):
+$ gcloud auth application-default login
+
+# Чтобы сменить проект в Google Cloud Platform (GCP) через gcloud, выполните следующую команду:
+gcloud config set project kubernetes-402014
+
+# Создание сервера для pritunl vpn
+gcloud compute instances create pritunl-vpn \
+    --project=kubernetes-402014 \
+    --zone=us-central1-c \
+    --machine-type=e2-micro \
+    --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=default \
+    --metadata=ssh-keys=appuser:ssh-ed25519\ \
+AAAAC3NzaC1lZDI1NTE5AAAAICe9m3kKmvdKVSCdDYs4CL/QGlwgtwWSYuGCYIrqRErs\ appuser \
+    --maintenance-policy=MIGRATE \
+    --provisioning-model=STANDARD \
+    --service-account=1009144136735-compute@developer.gserviceaccount.com \
+    --scopes=https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/trace.append \
+    --tags=pritunl-vpn,http-server,https-server \
+    --create-disk=auto-delete=yes,boot=yes,device-name=pritunl-vpn,image=projects/ubuntu-os-cloud/global/images/ubuntu-minimal-2204-jammy-v20231003,mode=rw,size=15,type=projects/kubernetes-402014/zones/us-central1-c/diskTypes/pd-balanced \
+    --no-shielded-secure-boot \
+    --shielded-vtpm \
+    --shielded-integrity-monitoring \
+    --labels=goog-ec-src=vm_add-gcloud \
+    --reservation-affinity=any
+
+# Pritunl VPN Install
+# https://docs.pritunl.com/docs/installation
+
+# Узнать какая сейчас default zone
+gcloud config get-value compute/zone
+# Поменять default zone
+gcloud config set compute/zone us-west1-a
+# Посмотреть какие зоны есть
+gcloud compute zones list
+
+# Установка Bucket
+cd /home/baggurd/Dropbox/Projects/vasiliy.basov.world/terraform/bucket
+terraform init
+terraform apply
+# Добавляем вновь созданный bucket в backend.tf
+terraform init
+
+# Установка Cloud DNS Zone
+cd /home/baggurd/Dropbox/Projects/vasiliy.basov.world/terraform/dnszonecreate
+terraform init
+terraform apply
+# Чтобы посмотреть какие output мы можем выводить, после применения можем ввести
+terraform show
+# посмотреть список созданных ресурсов
+# Посмотреть output повторно:
+terraform output managed_zone_name_servers
+# Переходим на GoDaddy https://dcc.godaddy.com/control/portfolio/basov.world/settings?tab=dns&itc=mya_vh_buildwebsite_domain и в Nameservers вводим наши полученные сервера без точки в конце.
+# tolist([
+#   "ns-cloud-d1.googledomains.com.",
+#   "ns-cloud-d2.googledomains.com.",
+#   "ns-cloud-d3.googledomains.com.",
+#   "ns-cloud-d4.googledomains.com.",
+# ])
+
+# Подключение к кластеру
+gcloud container clusters get-credentials k8s-test --zone us-central1-c
+kubectl get nodes
+# Посмотреть поды во всех неймспейсах
+kubectl get pods -A
+
+# https://gitlab.com/vasiliybasov/vasiliy.basov.world/-/clusters
+# Создаем новый токен и подключаем Gitlab к кластеру kubernetes
+helm repo add gitlab https://charts.gitlab.io
+helm repo update
+helm upgrade --install primary-agent gitlab/gitlab-agent --namespace gitlab-agent-primary-agent --create-namespace --set image.tag=v16.5.0-rc2 --set config.token=glagent-zUan1hYzXzxJ9sh9Ljvu_-PbPexmiMnsabnwM9hdRvyk9_AE1w --set config.kasAddress=wss://kas.gitlab.com
+
+# Install Gitlab
+
+helm repo add gitlab https://charts.gitlab.io/
+helm repo update
+
+https://docs.gitlab.com/charts/installation/command-line-options.html # - опции
+
+helm upgrade --install gitlab gitlab/gitlab --timeout 600s \
+  --set global.hosts.domain=gitlab.basov.world \
+  --set global.hosts.externalIP=35.192.162.100 \
+  --set certmanager-issuer.email=baggurd@mail.ru \
+  --set global.edition=ce \
+  --set gitlab-runner.runners.privileged=true \
+  --set global.kas.enabled=true \
+  --set global.ingress.class=nginx \
+  --set nginx-ingress.enabled=false \
+  --create-namespace \
+  -n gitlab
+
+# Получаем пароль
+kubectl get secrets -n gitlab | grep init
+kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath='{.data.password}' -n gitlab | base64 --decode ; echo
+
+kubectl get pods -n gitlab -w
+
+kubectl get ingress -n gitlab
+kubectl get svc -n gitlab
+kubectl get deploy -n gitlab
+
+# Просмотреть проблемы с сертификатами GITLAB
+kubectl describe certificate,order,challenge --all-namespaces
+
+# Let's Encrypt т.е. настройка certmanager-issuer.email=baggurd@mail.ru позволяет создать только 5 сертификатов в течении 7 суток.
+
+# Токен мы получаем когда заходим в project - Infrastructure Kubernetes clusters = connect a cluster
+# Tokent agent
+# q-Lr8gXZdKSNVHmRTbWs4W2PmHtdr9_zoNgz9_B9k3Nk_9TCdA   8HmyBdMMkSzDAcVWx8vMiaHYhfQwSVPzfg8ceoPPvx9-Coc42w
+
+# Install primary-agent Gitlab
+
+helm upgrade --install primary-agent gitlab/gitlab-agent \
+    --set image.tag=v15.9.0 \
+    --set config.token=3KEczovDUMBU9a8sxNZ9hh3_Fp8R_Y1pP48dZy2smdJkTDGECQ \
+    --set config.kasAddress=wss://kas.gitlab.basov.world \
+    --namespace gitlab
+
+helm upgrade --install --wait --create-namespace --namespace reddittest reddit reddit/
+helm upgrade --install --wait  --set ui.ingress.host="vasiliybasov.gitlab.basov.world" --set ui.image.tag=test01 --create-namespace --namespace reddittest reddit reddit/reddit/
+helm dep update reddit/reddit
+
+
+helm uninstall --namespace reddittest reddit
+
+# Обновление зависимостей чарта
+helm dep update ./reddit
+
+# Удаление установленого манифеста
+kubectl delete -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.7.0/deploy/static/provider/cloud/deploy.yaml
+
+# install prometheus
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm upgrade --install --wait -f ../charts/prometheus/custom_values.yaml prometheus prometheus-community/prometheus --create-namespace --namespace prometheus
+
+helm upgrade --install --wait reddit-test ../gitlab_ci/reddit
+helm upgrade --install --wait production --namespace production --create-namespace ./reddit
+helm upgrade --install --wait staging --namespace staging --create-namespace ./reddit
+
+# install grafana
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+helm upgrade --install --wait grafana grafana/grafana \
+  --set adminPassword=grafanapassword \
+  --set ingress.enabled=true \
+  --set ingress.ingressClassName=nginx \
+  --set ingress.hosts={grafana.cluster.basov.world} \
+  --values ../charts/grafana/grafana.yaml \
+  --create-namespace \
+  -n grafana
+# получить пароль
+kubectl get secret --namespace grafana grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+kubectl get ingress --all-namespaces
+
+
+# Kibana install
+helm repo add elastic https://helm.elastic.co
+
+helm upgrade --install kibana elastic/kibana \
+--set ingress.enabled=true \
+--set ingress.hosts[0].host={kibana.cluster.basov.world} \
+--set elasticsearchHosts=http://elasticsearch-logging:9200 \
+--create-namespace \
+-n kibana
+
+# Просмотр событий
+kubectl -n kibana get events --sort-by='{.lastTimestamp}'
+
+# Установка nginx ingress controller
+helm upgrade --install ingress-nginx ingress-nginx --repo https://kubernetes.github.io/ingress-nginx --namespace ingress-nginx --create-namespace --set controller.service.loadBalancerIP=35.192.172.98 --set controller.metrics.enabled=true
+# Другой вариант:
+helm upgrade --install nginx-ingress oci://ghcr.io/nginxinc/charts/nginx-ingress --version 0.18.0 --namespace nginx-ingress --create-namespace --set controller.service.loadBalancerIP=34.121.46.38
+
+# Если ошибка 403 то скачиваем на удаленном сервере. Error: failed to authorize: failed to fetch anonymous token: unexpected status from GET request to https://ghcr.io/token?scope=repository%3Anginxinc%2Fcharts%2Fnginx-ingress%3Apull&scope=repository%3Auser%2Fimage%3Apull&service=ghcr.io: 403 Forbidden
+helm pull oci://ghcr.io/nginxinc/charts/nginx-ingress --untar --version 1.0.1
+# И копируем чарт 
+scp -r appuser@35.224.226.212:/home/appuser/nginx-ingress/ /home/baggurd/Dropbox/Projects/vasiliy.basov.world/helm_charts/
+# Устанавливаем из локальной копии
+helm upgrade --install nginx-ingress /home/baggurd/Dropbox/Projects/vasiliy.basov.world/helm_charts/nginx-ingress/ --namespace nginx-ingress --create-namespace --set controller.service.loadBalancerIP=35.192.172.98
+
+# Посмотреть PriorityClass-ы
+kubectl get priorityclasses
+# Посмотреть конкретный 
+kubectl describe priorityclass system-node-critical
+# Посмотреть yaml файл конкретного пода и там можно посмотреть ProrityClass пода
+kubectl get pod kube-dns-fc686db9b-vhk24 -o yaml -n kube-system | grep priorityClassName
+
+
+# Посмотреть существующие Storage Classes
+# Storage Class может быть динамический и статический. Если Storage Class статический то сначала нужно создать Persistent Volume из манифеста
+kubectl get sc
+kubectl describe sc standard-rwo
+```
+```text
+# Если в результате вывода мы имеем строку
+Provisioner:           pd.csi.storage.gke.io
+то Storage Class динамический и автоматически создаст Persistent Volume
+```
+```bash
+# Если Storage Class статический то нам нужно вручную создавать Persistent Volume из манифеста
+# Например pv1.yml:
+```
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: node1-pv1
+spec:
+  capacity:
+    storage: 5Gi
+  # volumeMode field requires BlockVolume Alpha feature gate to be enabled.
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /local/pv1
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - server_node_name
+```
+```bash
+# Создаем Persistent Volume
+kubectl create pv1.yml
+
+# Посмотреть существующие Persistent Volume
+kubectl get pv
+
+# Устанавливаем Prometheus после скачки чарта локально
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm search repo prometheus-community
+# Download Chart Localy
+helm pull prometheus-community/prometheus --untar
+# Устанавливаем чарт Prometheus из локальной папки prometheus
+helm upgrade --install --wait prometheus --create-namespace --namespace monitoring ./prometheus/
+
+# Проверяем запуск наших подов
+kubectl get po -n monitoring -w
+# Проверяем Ingress
+kubectl get ingress -n monitoring
+
+# Просмотр ноды
+kubectl describe node gke-k8s-test-k8s-node-pool-be3fb87b-1vn1
+
+# Просмотр и редактирование конфига prometheus
+kubectl get cm -n monitoring
+kubectl edit cm -n monitoring prometheus-server
+
+# Просмотр сервисов
+kubectl get svc
+
+# Просмотр ip адресов API серверов.
+kubectl get endpoints
+# или посмотреть все endpoints
+kubectl get ep -A
+
+# Описание Endpoint Kubernetes
+kubectl describe ep kubernetes
+
+# Посмотреть service в формате yaml
+kubectl get svc -n nginx-ingress nginx-ingress-controller -o yaml
+
+# install blackbox
+helm pull prometheus-community/prometheus-blackbox-exporter --untar
+helm upgrade --install --wait prometheus-blackbox-exporter --create-namespace --namespace monitoring ./prometheus-blackbox-exporter/
+
+# Проверяем работу exporter-а
+http://blackbox.k8s.basov.world/probe?module=http_2xx&target=prometheus.io
+
+# Зайти внутрь контейнера и посмотреть nslookup
+kubectl exec -it -n monitoring prometheus-server-79fbf9cbcd-rpxr7 -- sh
+nslookup 10.75.247.214
+
+# Запуск приложения из папки
+kubectl apply -f example_app/
+
+# Устанавливаем чарт Prometheus для Настройки Federation сервера prometheus из локальной папки prometheus
+helm upgrade --install --wait prometheus-federation --create-namespace --namespace prometheus-federation -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_federation/federation.yaml ./prometheus/
+
+# Установка cert manager
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.12.4 --set installCRDs=true --set ingressShim.defaultIssuerName=letsencrypt-prod --set ingressShim.defaultIssuerKind=ClusterIssuer --set ingressShim.defaultIssuerGroup=cert-manager.io
+# Эти настройки нужны чтобы при указании аннотации kubernetes.io/tls-acme: "true" cert manager создавал сертификат для всех таких ingress:
+# --set ingressShim.defaultIssuerName=letsencrypt-prod --set ingressShim.defaultIssuerKind=ClusterIssuer --set ingressShim.defaultIssuerGroup=cert-manager.io
+# Также необходимо создать default cluster issuer letsencrypt-prod:
+/home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/ClusterIssuer/letsencrypt-prod.yaml
+# Также в ingress необходимо добавить аннотацию acme.cert-manager.io/http01-edit-in-place: "true" которая предотвращает создание второго ingress cm-acme-http-solver-p852j из за чего не выпускаются сертификаты. После добавления аннотации нужно пересоздать ingress
+
+```
+```
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # You must replace this email address with your own.
+    # Let's Encrypt will use this to contact you about expiring
+    # certificates, and issues related to your account.
+    email: vasiliy.basov.82@gmail.com
+    # Staging не выпускает доверенные сертификаты но он нужен чтобы удостовериться что 
+    # весь процесс работает как надо перед конфигурацией Production 
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      # Secret resource that will be used to store the ACME account's private key.
+      name: letsencrypt-prod
+    # Add a single challenge solver, HTTP01 using nginx
+    solvers:
+    - http01:
+        ingress:
+          ingressClassName: nginx
+```
+```bash
+# И применить его 
+kubectl apply -f letsencrypt-prod.yaml
+# Проверка сертификатов
+kubectl get certificate -A
+kubectl describe certificate -n monitoring prometheus-server-tls
+kubectl get certificaterequest -A
+kubectl describe certificaterequest prometheus-server-tls-l54gx -n monitoring
+kubectl get clusterissuer
+# Troubleshooting
+# https://cert-manager.io/docs/troubleshooting/acme/#2-troubleshooting-orders
+
+
+# Установка Basic_Auth https://github.com/kubernetes/ingress-nginx/blob/main/docs/examples/auth/basic/README.md
+# Создаем пароль в файл auth (здесь логин admin, пароль нужно ввести) 
+htpasswd -c auth admin
+# Создаем секрет из файла auth
+kubectl create secret generic basic-auth --from-file auth -n monitoring
+
+# Установка Victoria Metrics
+# test
+helm upgrade --install vm-cluster vm/victoria-metrics-cluster -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/victoria/values.yaml -n victoria --create-namespace --debug --dry-run
+# install
+helm upgrade --install vm-cluster vm/victoria-metrics-cluster -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/victoria/values.yaml -n victoria --create-namespace
+# Проверка
+kubectl get pods -A | grep 'victoria-metrics'
+kubectl get all -n victoria | grep victoria
+
+# Скачивание и запуск контейнера
+docker pull vasiliybasov/vasiliy.basov.world:basovtest
+
+-d Run container in background and print container ID
+-p <Host_PORT>:<Container_PORT>
+docker run --name test-resume -d -p 9091:80 vasiliybasov/vasiliy.basov.world:basovtest
+# Проверка
+http://127.0.0.1:9091/
+
+
+helm upgrade --install \
+  --wait \
+  --set host=test22.basov.world \
+  --set image.tag="basovtest" \
+  --set image.repository="vasiliybasov/vasiliy.basov.world" \
+  --namespace="test22" \
+  --version="234234234-2423" \
+  --create-namespace \
+  test22 \
+  helm_charts/resume-app/
+
+# Git - Merge Branch to master (main) branch
+1) Переключаемся на main branch
+2) Переходим в source control - ... - branch - merge branch - выбираем наш branch
+3) push в remote repo.
+
+# Prometheus Operator Install
+helm repo update
+kubectl create ns prometheus-operator
+# Create Secret for basic auth
+htpasswd -c auth admin
+kubectl create secret generic admin-basic-auth --from-file=auth -n prometheus-operator
+# Проверка
+kubectl get secrets -n prometheus-operator admin-basic-auth
+
+helm upgrade --install prom-operator prometheus-community/kube-prometheus-stack --namespace prometheus-oper --create-namespace -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_operator/changed_values.yaml
+```
+

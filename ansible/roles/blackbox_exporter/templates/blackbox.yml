@@ -1,5 +1,6 @@
 modules:
   http_2xx:
+    # Какой протокол будет использован для проверки
     prober: http
     http:
       preferred_ip_protocol: "ip4"

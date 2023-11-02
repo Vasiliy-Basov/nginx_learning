@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # .Release.Name это имя релиза которое мы устанавливаем (или оно назначается автоматически если мы его не указываем) когда запускаем команду helm install
+  # .Chart.Name - это имя чарта, берется из файла Chart.yaml
+  # Это имя должно совпадать с именем указанным в ingress
+  name: {{ template "resume.fullname" . }}
+  labels: 
+    app: http-server
+    component: resume
+    release: {{ .Release.Name }} # помечаем что сервис из конкретного релиза
+spec:
+  # На основании этого селектора происходит доступ к подам где прописан такой же label
+  selector:
+    app: http-server
+    component: resume
+    release: {{ .Release.Name }} # Означает что мы будем применять только к подам из нашего релиза.
+  type: ClusterIP # DefaultType
+  ports:
+    - name: http
+      protocol: TCP
+      # Порт на который будет обращаться Ingress сервис.
+      port: {{ .Values.service.externalPort }} # эта переменная берется из файла values.yaml
+      # Порт контейнера (вместо номера порта также можем использовать имя)
+      # Тогда имя должно быть задано в секции spec.ports в Deployment
+      targetPort: http
+  # Default Type. Ip назначается в пределах кластера. Только внутренний.

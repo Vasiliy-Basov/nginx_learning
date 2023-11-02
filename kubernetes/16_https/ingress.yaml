@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: main-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # rewrite правило, перенаправляет все запросы на корневой путь /
+    # nginx.ingress.kubernetes.io/rewrite-target: /  
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - vasiliy.basov.world
+    # Название сертификата (Этот секрет создастся и там будет храниться private key и наш сертификат)
+    secretName: app-tls
+  rules:
+  # Все запросы которые приходят на этот хост будут перенаправляться на этот сервис
+  - host: vasiliy.basov.world
+    http:
+      paths:
+        # Тип Prefix означает что все запросы которые начинаются на vasiliy.basov.world/... будут перенаправляться на наш сервис вместо ... может быть все что угодно
+        - pathType: Prefix
+          path: /
+          backend:
+            # Указываем имя сервиса и порт сервиса куда будет посылаться трафик с запросов которые будут приходить на хост vasiliy.basov.world
+            service:
+              name: kuber-service
+              port: 
+                number: 80
+  # Если мы поставили nginx ingress controller то мы должны указать эту настройку иначе не выдастся ip адрес
+

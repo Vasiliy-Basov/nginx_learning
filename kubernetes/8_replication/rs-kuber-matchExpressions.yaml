@@ -1,0 +1,33 @@
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: kuber-rs-2
+spec:
+  replicas: 3
+  # Будет действовать только на поды которые соответствуют выражению
+  selector:
+    matchExpressions:
+      # Ключ app
+      - key: app
+        # In (или) (Означает что app должен быть равен или kuber или http-server) (можем использовать NotIn)
+        operator: In
+        values:
+          - kuber
+          - http-server
+      # Должен существовать label с ключом env и любым значением. Также можем использовать (DoesNotExist)
+      - key: env
+        operator: Exists
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        app: kuber
+        env: dev
+    spec:
+      containers:
+      - name: resume-test
+        image: vasiliybasov/resume:1.0
+        ports:
+        - containerPort: 80

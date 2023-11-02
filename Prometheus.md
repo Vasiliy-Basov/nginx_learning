@@ -49,7 +49,7 @@ Default: -
 node_exporter --help
 ```
 
-## Install  blackbox_exporter
+## blackbox exporter
 Инсталлируем с помощью ansible
 ../Projects/nginx_learning/ansible
 
@@ -57,7 +57,7 @@ node_exporter --help
 ansible-playbook blackbox_exporter.yaml --private-key /home/baggurd/.ssh/appuser_ed25519
 ```
 
-## ICMP протокол
+### ICMP протокол
 добавили в blackbox.yml
 ```yaml
   icmp_slurm:
@@ -66,8 +66,11 @@ ansible-playbook blackbox_exporter.yaml --private-key /home/baggurd/.ssh/appuser
     icmp:
       preferred_ip_protocol: "ip4"
 ```
+prober: задает, какой протокол будет использован для проверки. Возможные значения:
+icmp | dns | tcp | http.
+Далее идут настройки, специфичные для каждого протокола.
 
-Проверяем что prometheus.io доступен с помощью нашего модуля icmp_slurm
+Если мы хотим проверить доступность сервера prometheus.io с сервера где стоит blackbox exporter можем это сделать с помощью icmp_slurm
 ```bash
 curl -is "http://localhost:9115/probe?module=icmp_slurm&target=prometheus.io" | grep probe_success
 ```
@@ -343,6 +346,27 @@ tls_config
 * cert_file​ – путь к файлу с клиентским сертификатом.
 * key_file ​– путь к файлу с клиентским ключом.
 * server_name​ – строка для проверки имени сервера.
+```
+
+## Настройка со стороны Prometheus
+```yaml
+scrape_configs:
+  - job_name: blackbox
+    metrics_path: /probe
+    # Какой модуль используем для проверки
+    params:
+      module: [http_slurm]
+    static_configs:
+      # адрес проверяемого ресурса.
+      - targets:
+        - "http://www.prometheus.io"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9115
 ```
 
 ## Default port allocations
@@ -1632,3 +1656,2083 @@ timeout – максимальное время выполнения запро�
 ```bash
 curl 'http://localhost:9090/api/v1/query_range?query=up&start=2023-07-19T09:10:51.781Z&end=2023-07-19T09:15:51.781Z&step=30s' > zapros
 ```
+
+#### Поиск временных рядов на основании labels
+
+Ednpoint​: /api/v1/series
+
+Method​: GET | POST
+
+Параметры запроса:
+- match[] – задает список меток, соответствие которым учитывается при поиске. Необходимо задать хотя бы одно условие.
+- start – временная метка начала вектора.
+- end – временная метка окончания вектора.
+
+Пример.​ В результате выполнения запроса мы получим данные по всем временным рядам, которые имеют имя node_disk_write_time_seconds_total и label device со значением sda:
+```bash
+curl -XPOST -H 'Content-Type: application/x-www-form-urlencoded' -d 'match[]=node_disk_write_time_seconds_total{device="sda"}' http://localhost:9090/api/v1/series
+```
+```
+-H 'Content-Type: application/x-www-form-urlencoded' - установка заголовка Content-Type в application/x-www-form-urlencoded
+
+-d 'match[]=node_disk_write_time_seconds_total{device="sda"}' - тело запроса в формате x-www-form-urlencoded. match[] задает выражение для поиска временного ряда.
+```
+
+```json
+{"status":"success","data":[{"__name__":"node_disk_write_time_seconds_total","device":"sda","instance":"nginx.basov.world:9100","job":"file_sd","sd":"file"},{"__name__":"node_disk_write_time_seconds_total","device":"sda","instance":"nginx.basov.world:9100","job":"static_config","sd":"static"},{"__name__":"node_disk_write_time_seconds_total","device":"sda","instance":"prometheus-1.basov.world:9100","job":"file_sd","sd":"file"},{"__name__":"node_disk_write_time_seconds_total","device":"sda","instance":"prometheus-2.basov.world:9100","job":"file_sd","sd":"file"},{"__name__":"node_disk_write_time_seconds_total","device":"sda","instance":"vasiliy.basov.world:9100","job":"file_sd","sd":"file"},{"__name__":"node_disk_write_time_seconds_total","device":"sda","instance":"vasiliy.basov.world:9100","job":"static_config","sd":"static"}]}
+```
+В данном JSON ответе значения самой метрики node_disk_write_time_seconds_total отсутствуют.
+
+В ответе перечислены только метаданные этой метрики для разных временных рядов:
+
+- name - название метрики
+- instance - имя инстанции, для которой собирается метрика
+- device - имя диска
+- job - job из которого собраны данные
+- sd - источник данных
+Но конкретные числовые значения метрики node_disk_write_time_seconds_total, составляющие временной ряд, здесь не присутствуют.
+
+Чтобы получить эти значения, необходимо в запросе указать дополнительные параметры выборки, например:
+
+Временной диапазон (start, end)
+Интервал выборки (step)
+Функцию агрегации значений (rate, avg)
+Например:
+
+/api/v1/query?query=node_disk_write_time_seconds_total{device="sda"}&start=2019-01-01T00:00:00Z&end=2019-01-02T00:00:00Z&step=1m
+
+Этот запрос вернёт временной ряд фактических значений метрики за указанный период.
+#### Получение списка меток (labels)
+
+Endpoint: `/api/v1/labels`
+
+Method: `GET | POST`
+
+Параметры запроса: -
+
+Данный запрос позволяет получить список всех labels. 
+
+Пример:
+
+```bash
+curl 'http://localhost:9090/api/v1/labels'
+```
+
+Ответ будет примерно таким:
+
+```json
+{
+  "status":"success",
+  "data":[
+    "__name__",
+    "address", 
+    "alertmanager",
+    "alertname",
+    "alertstate",
+    "branch",
+    "broadcast",
+    "call",
+    "code",
+    "collector",
+    "config",
+    "cpu",
+    "device",
+    "dialer_name",
+    "domainname",  
+    "endpoint",
+    "event",
+    "fstype",
+    "goversion",
+    "handler",
+    "instance",
+    "interval",
+    "job",
+    "le",
+    "listener_name",
+    "machine",
+    "mode",
+    "mountpoint",
+    "name",
+    "nodename",
+    "operstate",
+    "quantile",
+    "reason",
+    "release",
+    "revision",
+    "role",
+    "rule_group",
+    "scrape_job",
+    "severity",
+    "slice",
+    "sysname",
+    "version"
+  ]
+}
+```
+
+#### Запрос значений для label
+
+Endpoint: `/api/v1/labels/<label name>/values`
+
+Method: `GET` 
+
+Параметры запроса: -
+
+Данный endpoint позволяет получить все значения для определенного label. 
+
+Синтаксис запроса: 
+
+`/api/v1/labels/<label name>/values`
+
+Где `<label name>` это имя label, для которого необходимо получить значения.
+
+Пример:
+
+```bash
+curl 'http://localhost:9090/api/v1/label/instance/values'
+```
+
+Ответ будет примерно таким:
+
+```json
+{
+  "status":"success",
+  "data":[
+    "129.168.0.7:9090",
+    "192.168.0.12:9090", 
+    "192.168.0.12:9100",
+    "192.168.0.7:9090",
+    "192.168.0.7:9100",
+    "localhost:9090",
+    "localhost:9100"
+  ]
+}
+```
+
+# API для получения конфигурации
+
+### Конфигурация сервера
+
+Endpoint: `/api/v1/status/config`
+
+Method: `GET`
+
+Параметры запроса: -
+
+Данный запрос позволяет получить текущую конфигурацию сервера.
+
+Пример:
+
+```bash
+curl 'http://localhost:9090/api/v1/status/config'
+```
+
+В ответ будет возвращена конфигурация сервера, в yaml формате.
+
+## Список ключей запуска
+
+Endpoint: `/api/v1/status/flags`  
+
+Method: `GET`
+
+Параметры запроса: -
+
+Данный запрос позволяет получить список ключей и их значений, с которыми в данный момент запущен сервер.
+
+Пример:
+
+```bash 
+curl 'http://localhost:9090/api/v1/status/flags'
+```
+
+## Список targets
+
+Endpoint: `/api/v1/targets`
+
+Method: `GET`
+
+Параметры запроса: -
+
+Данный запрос позволяет получить информацию о всех targets
+
+Пример:
+
+```bash
+curl 'http://localhost:9090/api/v1/targets' 
+```
+
+В ответ Вы получите список targets с их параметрами.
+
+# Rules и Alerts API
+
+## Alertmanagers
+
+Endpoint: `/api/v1/alertmanagers`
+
+Method: `GET`
+
+Параметры запроса: -
+
+Данный запрос позволяет получить список всех настроенных alertmanagers и их статус.
+
+Пример:
+
+```bash
+curl 'http://localhost:9090/api/v1/alertmanagers'
+```
+
+Ответ должен быть примерно таким:
+
+```json
+{
+  "status":"success",
+  "data":{
+    "activeAlertmanagers":[
+      {
+        "url":"http://127.0.0.1:9093/api/v1/alerts"
+      },
+      {
+        "url":"http://192.168.0.7:9093/api/v1/alerts" 
+      }
+    ],
+    "droppedAlertmanagers":[]
+  }
+}
+```
+
+## Alerts
+
+Endpoint: `/api/v1/alerts` 
+
+Method: `GET`
+
+Параметры запроса: -
+
+Данный запрос позволяет получить список активных алертов.
+
+Пример:
+
+```bash
+curl http://localhost:9090/api/v1/alerts
+```
+
+Ответ должен быть примерно таким:
+
+```json
+{
+  "status":"success",
+  "data":{
+    "alerts":[]
+  }
+}
+```
+
+## Rules
+
+Endpoint: `/api/v1/rules`
+
+Method: `GET` 
+
+Параметры запроса: -
+
+Данный запрос позволяет получить список всех правил: как record rules, так и alert rules.
+
+Пример: 
+
+```bash
+curl http://localhost:9090/api/v1/rules
+```
+
+Ответ должен быть примерно таким:
+
+```json
+{
+  "status":"success",
+  "data":{
+    "groups":[
+      {
+        "name":"...",
+        "rules":[
+          {
+            "name":"...",
+            "query":"...",
+            ...
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+
+# Kubernetes Prometheus
+
+## Install
+### install prometheus
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm search repo prometheus-community
+```
+### Download Chart Localy
+```bash 
+helm pull prometheus-community/prometheus --untar
+```
+
+## values.yaml Prometheus
+Описание основных настроек:
+```yaml
+# Права необходимые для prometheus для работы в кластере (хелм чарт создает необходимые роли и role bunding)
+rbac:
+  create: true
+# Если в кластере уже используется podSecurityPolicy то эту настройку нужно включить 
+podSecurityPolicy:
+  enabled: false
+# Указываем необходимые доступы к private registry. imagePullSecrets позволяет использовать образы Prometheus из закрытых реестров.
+imagePullSecrets: []
+# - name: "image-pull-secret"
+
+# Количиство реплик. В Production среде должно быть больше одной реплики.
+# Если количество реплик больше одного то нужно настроить StatfulSet вместо Deployment
+replicaCount: 1
+
+  statefulSet:
+    ## If true, use a statefulset instead of a deployment for pod management.
+    ## This allows to scale replicas to more than 1 pod
+    ##
+    enabled: false
+
+    annotations: {}
+    labels: {}
+    podManagementPolicy: OrderedReady
+
+    ## Alertmanager headless service to use for the statefulset
+    ##
+    headless:
+      annotations: {}
+      labels: {}
+      servicePort: 80
+      ## Enable gRPC port on service to allow auto discovery with thanos-querier
+      gRPC:
+        enabled: false
+        servicePort: 10901
+        # nodePort: 10901
+
+# Настройки Prometheus Сервера
+server:
+  ## Prometheus server container name
+  ##
+  name: server
+
+
+  global:
+    ## How frequently to scrape targets by default
+    ## С какой частотой собираются метрики
+    scrape_interval: 1m
+    ## How long until a scrape request times out
+    ## Через сколько секунд prometheus будет считать что собрать метрики не получилось
+    scrape_timeout: 10s
+    ## How frequently to evaluate rules
+    ## Через какое время правило написанное для alert ов будет считаться выполнившемся.
+    evaluation_interval: 1m
+
+  # Настройки отвечающие за настройку внешнего хранилища для метрик
+  ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
+  ##
+  remoteWrite: []
+  ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_read
+  ##
+  remoteRead: []
+  
+  # Настройка ingress контроллера
+  ingress:
+    ## If true, Prometheus server Ingress will be created
+    ##
+    enabled: false
+
+    # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
+    # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
+    ingressClassName: nginx
+
+    ## Prometheus server Ingress annotations
+    ## Если у нас в кластере установлен Cert Manager то мы можем с помощью аннотаций подключить tls сертификат
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   kubernetes.io/tls-acme: 'true'
+
+    ## Prometheus server Ingress additional labels
+    ##
+    extraLabels: {}
+
+    ## Prometheus server Ingress hostnames with optional path
+    ## Must be provided if Ingress is enabled
+    ##
+    hosts:
+      - prometheus.k8s.basov.world
+    #   - domain.com/prometheus
+
+    path: /
+
+    # pathType is only for k8s >= 1.18
+    pathType: Prefix
+
+    ## Extra paths to prepend to every host configuration. This is useful when working with annotation based services.
+    extraPaths: []
+    # - path: /*
+    #   backend:
+    #     serviceName: ssl-redirect
+    #     servicePort: use-annotation
+
+    ## Prometheus server Ingress TLS configuration
+    ## Secrets must be manually created in the namespace
+    ##
+    tls: []
+    #   - secretName: prometheus-server-tls
+    #     hosts:
+    #       - prometheus.domain.com
+
+# Обязательно использовать для Production сервера
+  persistentVolume:
+    ## If true, Prometheus server will create/use a Persistent Volume Claim
+    ## If false, use emptyDir
+    ##
+    enabled: true
+
+    ## If set it will override the name of the created persistent volume claim
+    ## generated by the stateful set.
+    ##
+    statefulSetNameOverride: ""
+
+    ## Prometheus server data Persistent Volume access modes
+    ## Must match those of existing PV or dynamic provisioner
+    ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+    ##
+    accessModes:
+      - ReadWriteOnce
+
+    ## Prometheus server data Persistent Volume labels
+    ##
+    labels: {}
+
+    ## Prometheus server data Persistent Volume annotations
+    ##
+    annotations: {}
+
+    ## Prometheus server data Persistent Volume existing claim name
+    ## Requires server.persistentVolume.enabled: true
+    ## If defined, PVC must be created manually before volume will be bound
+    existingClaim: ""
+
+    ## Prometheus server data Persistent Volume mount root path
+    ##
+    mountPath: /data
+
+    ## Prometheus server data Persistent Volume size
+    ##
+    size: 8Gi
+
+    ## Prometheus server data Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ## Прописываем нужный storageClass
+    storageClass: "standard-rwo"
+
+    ## Prometheus server data Persistent Volume Binding Mode
+    ## If defined, volumeBindingMode: <volumeBindingMode>
+    ## If undefined (the default) or set to null, no volumeBindingMode spec is
+    ##   set, choosing the default mode.
+    ##
+    # volumeBindingMode: ""
+
+    ## Subdirectory of Prometheus server data Persistent Volume to mount
+    ## Useful if the volume's root directory is not empty
+    ##
+    subPath: ""
+
+    ## Persistent Volume Claim Selector
+    ## Useful if Persistent Volumes have been provisioned in advance
+    ## Ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#selector
+    ##
+    # selector:
+    #  matchLabels:
+    #    release: "stable"
+    #  matchExpressions:
+    #    - { key: environment, operator: In, values: [ dev ] }
+
+    ## Persistent Volume Name
+    ## Useful if Persistent Volumes have been provisioned in advance and you want to use a specific one
+    ##
+    # volumeName: ""
+
+
+
+
+  # В Production должна быть больше 1 Реплики 
+  ## Use a StatefulSet if replicaCount needs to be greater than 1 (see below)
+  ##
+  replicaCount: 1
+
+  ## Annotations to be added to deployment
+  ##
+  deploymentAnnotations: {}
+
+  statefulSet:
+    ## If true, use a statefulset instead of a deployment for pod management.
+    ## This allows to scale replicas to more than 1 pod
+    ##
+    enabled: false
+
+    annotations: {}
+    labels: {}
+    podManagementPolicy: OrderedReady
+
+    ## Alertmanager headless service to use for the statefulset
+    ##
+    headless:
+      annotations: {}
+      labels: {}
+      servicePort: 80
+      ## Enable gRPC port on service to allow auto discovery with thanos-querier
+      gRPC:
+        enabled: false
+        servicePort: 10901
+        # nodePort: 10901
+
+  ## Prometheus server resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  ## Prometheus data retention period (default if not specified is 15 days)
+  ## Сколько времени хранятся метрики в базе данных
+  retention: "15d"
+
+## Monitors ConfigMap changes and POSTs to a URL
+## Ref: https://github.com/prometheus-operator/prometheus-operator/tree/main/cmd/prometheus-config-reloader
+##
+# Блок который отвечает за запуск контейнера который перезагружает нашу конфигурацию (без этого контейнера придется после изменения конфигурации перезагружать prometheus руками)
+configmapReload:
+
+
+# Собираеи большое количество метрик
+## kube-state-metrics sub-chart configurable values
+## Please see https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-state-metrics
+##
+kube-state-metrics:
+  ## If false, kube-state-metrics sub-chart will not be installed
+  ##
+  enabled: true
+
+# Собирает метрики наших серверов
+## promtheus-node-exporter sub-chart configurable values
+## Please see https://github.com/prometheus-community/helm-charts/tree/main/charts/prometheus-node-exporter
+##
+prometheus-node-exporter:
+  ## If false, node-exporter will not be installed
+  ##
+  enabled: true
+
+  rbac:
+    pspEnabled: false
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+```
+
+## alertmanager values.yaml
+```yaml
+# Количиство реплик. В Production среде должно быть больше одной реплики.
+# Если количество реплик больше одного то нужно настроить StatfulSet вместо Deployment
+replicaCount: 1
+
+# Имя контейнера (можем поменять если у нас используются приватные registry)
+image:
+  repository: quay.io/prometheus/alertmanager
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# Если у нас в кластере используются priorityClass то стоит указать PriorityClass (позволяют выставить приоритет для подов)
+# PriorityClass для Production выше, и эти поды будут запускаться быстрее
+# Sets priorityClassName in alertmanager pod
+priorityClassName: ""
+
+# Настройка Ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: alertmanager.k8s.basov.world
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - alertmanager.domain.com
+
+# Определяем Persistant Volume 
+persistence:
+  enabled: true
+  ## Persistent Volume Storage Class
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ## set, choosing the default provisioner.
+  ##
+  # Можем прописать StorageClass если он у нас настроен
+  storageClass: "standard-rwo"
+  accessModes:
+    - ReadWriteOnce
+  size: 50Mi
+
+# Указываем ресурсы. После запуска системы мониторинга следим за потреблением ресурсов и меняем в случае необходимости
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 32Mi
+
+# Блок который отвечает за запуск контейнера который перезагружает нашу конфигурацию (без этого контейнера придется после изменения конфигурации перезагружать prometheus руками)
+## Monitors ConfigMap changes and POSTs to a URL
+## Ref: https://github.com/jimmidyson/configmap-reload
+##
+configmapReload:
+  ## If false, the configmap-reload container will not be deployed
+  ##
+  enabled: true
+
+  ## configmap-reload container name
+  ##
+  name: configmap-reload
+
+  ## configmap-reload container image
+  ##
+  image:
+    repository: jimmidyson/configmap-reload
+    tag: v0.8.0
+    pullPolicy: IfNotPresent
+
+  # containerPort: 9533
+
+  ## configmap-reload resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: {}
+```
+
+
+## prometheus-node-exporter values.yaml
+
+```yaml
+# Если мы хотим чтобы node exporter запускался на master нодах то нужно поменять tolerations
+# kubectl get nodes
+# Смотрим Taints ноды и добавляем в tolerations если хотим установить экспортер на ноду
+# kubectl describe node gke-k8s-test-k8s-node-pool-be3fb87b-1vn1 | grep Taints
+
+tolerations:
+  - effect: NoSchedule
+    operator: Exists
+
+  resources:
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    limits:
+      cpu: 100m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+```
+
+## StorageClass и PersistentVolume
+```bash
+# Посмотреть существующие Storage Classes
+# Storage Class может быть динамический и статический. Если Storage Class статический то сначала нужно создать Persistent Volume из манифеста
+kubectl get sc
+kubectl describe sc standard-rwo
+```
+```
+# Если в результате вывода мы имеем строку
+Provisioner:           pd.csi.storage.gke.io
+то Storage Class динамический и автоматически создаст Persistent Volume
+```
+Если Storage Class статический то нам нужно вручную создавать Persistent Volume из манифеста перед установкой helm чарта prometheus
+
+Например:
+Предварительно нужно создать папки /local/pv1 на нужных нодах где будут храниться соответствующие Persistent Volume
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: node1-pv1
+spec:
+  capacity:
+    storage: 5Gi
+  # volumeMode field requires BlockVolume Alpha feature gate to be enabled.
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /local/pv1
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - node-1.s<ваш номер логина>.slurm.io
+```
+
+```bash
+# Создаем Persistent Volume
+kubectl create pv1.yml
+```
+
+```bash
+# Посмотреть существующие Persistent Volume
+kubectl get pv
+```
+
+## Kube-State-Metrics
+Это экспортер
+
+Pod
+```bash
+kubectl describe po -n monitoring prometheus-kube-state-metrics-698464d9bb-qgcks
+```
+Аргументы с которыми запускается под
+```bash
+    Args:
+      --port=8080
+      --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
+```
+### Посмотреть метрики которые собирает Kube-State-Metrics
+```bash
+curl 10.72.2.12:8080/metrics
+```
+### Метрики Kube-State-Metrics
+Выполняем на prometheus запросы:  
+Метрика 
+```
+kube_deployment_status_replicas_unavailable
+```
+Показывает количество реплик в статусе недоступные у deployment
+Например можем отсылать алерт если эта метрика для важного deployment > 0 :
+```
+kube_deployment_status_replicas_unavailable{deployment="production-resume-app"}
+```
+
+Текущее потребление ресурсов 
+```
+kube_node_status_capacity{resource="memory"} / 1024
+```
+
+Проверяем что совпадает с capacity ноды
+```bash
+kubectl describe node gke-k8s-test-k8s-node-pool-be3fb87b-1vn1
+```
+
+Рекомендуется настроить на production: Количество рестартов подов 
+```
+kube_pod_container_status_restarts_total > 0
+```
+Можем составить алерт если pod рестартовал больше двух раз в течениии получаса.
+
+Посмотреть поды которые не имеют статус ready
+```
+kube_pod_container_status_ready != 1
+```
+Можем составить алерт на такие поды
+
+## Prometheus config
+https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+
+Посмотреть существующие ConfigMap (Хранятся конфигурационные настройки для подов)
+```bash
+kubectl get cm -n monitoring
+```
+Открыть ConfigMap для редактирования, это конфиг нашего prometheus сервера
+```
+kubectl edit cm -n monitoring prometheus-server
+```
+Здесь мы можем поменять данные и конфиг сохранить. После сохранения произойдет reload конфига. (Если мы его не отключали)
+
+### Секция scrape_configs.
+Это инструкция по которой prometheus будет собирать метрики.
+
+#### Job-ы
+Посмотреть их можно здесь
+
+http://prometheus.k8s.basov.world/targets
+
+```yaml
+    # Имя job-а  
+    - job_name: prometheus
+      # Способ сбора метрики (статический)
+      static_configs:
+      - targets:
+        - localhost:9090
+    - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+```
+
+### Service Discovery
+https://prometheus.io/docs/prometheus/latest/configuration/configuration/#kubernetes_sd_config
+
+http://prometheus.k8s.basov.world/service-discovery?search=
+
+Динамический сбор данных
+
+#### На примере job kubernetes-apiservers
+Нам нужно собирать данные не со всех `endpoints` а только с `API Servers`
+```bash
+# Просмотр сервисов
+kubectl get svc
+NAME         TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.75.240.1   <none>        443/TCP   3d21h
+
+# Просмотр ip адресов API серверов.
+kubectl get endpoints
+NAME         ENDPOINTS           AGE
+kubernetes   10.128.15.199:443   3d21h
+
+# или посмотреть все endpoints
+kubectl get ep -A
+NAMESPACE       NAME                                  ENDPOINTS                      AGE
+default         kubernetes                            10.128.15.199:443              3d21h
+kube-system     default-http-backend                  10.72.2.2:8080                 3d21h
+kube-system     kube-dns                              10.72.2.9:53,10.72.2.9:53      3d21h
+kube-system     metrics-server                        10.72.2.8:10250                3d21h
+kube-system     vpa-recommender                       <none>                         3d21h
+monitoring      prometheus-alertmanager               10.72.2.14:9093                22h
+monitoring      prometheus-alertmanager-headless      10.72.2.14:9093                22h
+monitoring      prometheus-kube-state-metrics         10.72.2.12:8080                22h
+monitoring      prometheus-prometheus-node-exporter   10.128.15.201:9100             22h
+monitoring      prometheus-prometheus-pushgateway     10.72.2.11:9091                22h
+monitoring      prometheus-server                     10.72.2.13:9090                22h
+nginx-ingress   nginx-ingress-controller              10.72.2.10:443,10.72.2.10:80   3d2h
+
+# Описание Endpoint Kubernetes
+kubectl describe ep kubernetes
+Name:         kubernetes
+Namespace:    default
+Labels:       endpointslice.kubernetes.io/skip-mirror=true
+Annotations:  <none>
+Subsets:
+  Addresses:          10.128.15.199
+  NotReadyAddresses:  <none>
+  Ports:
+    Name   Port  Protocol
+    ----   ----  --------
+    https  443   TCP
+
+```
+Нам нужно отфильтровать из этих endpoints только тот который относится к `API Servers `
+
+Как это выглядит в конфиге:
+```yaml
+      job_name: kubernetes-apiservers
+      # Сбор данныых с помощью Service Discovery
+      kubernetes_sd_configs:
+      # Роль prometheus. Prometheus обращается в Kubernetes API servers и запрашивает у api сервера все объекты типа endpoints. 
+      - role: endpoints
+      relabel_configs:
+        # сохраняем отфильтрованное
+      - action: keep
+        # (правила фильтрации) здесь мы указываем что мы будем собирать данные только тех endpoints, labels которых соответствует значениям собранным из секции source_labels: т.е __meta_kubernetes_namespace = default __meta_kubernetes_service_name = kubernetes и т.д.
+        regex: default;kubernetes;https
+        # Мы собираем информацию этих lables со всех endpoints
+        source_labels:
+        - __meta_kubernetes_namespace
+        - __meta_kubernetes_service_name
+        - __meta_kubernetes_endpoint_port_name
+      scheme: https
+      # сертификаты для авторизации в API Servers.
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+    - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+```
+### Endpoints
+`Endpoints` - это объекты `Kubernetes API`, которые содержат информацию о том, как получить доступ к определенному сервису в кластере.
+
+В частности, объект `Endpoints` содержит список IP-адресов и портов всех подов, которые реализуют данный сервис.
+
+Например, если у нас есть сервис `my-service`, то Kubernetes создаст соответствующий объект `Endpoints my-service`, который будет содержать IP и порты подов, предоставляющих функционал этого сервиса.
+
+### Roles
+В `Kubernetes Service Discovery` для `Prometheus` есть несколько вариантов `role`, которые можно использовать:
+
+- `endpoints` - используется для сбора метрик с Endpoint объектов Kubernetes. Это позволяет открывать сервисы вроде Kubernetes API server.
+
+- `pod` - используется для сбора метрик непосредственно с подов. 
+
+- `service` - используется для сбора метрик через сервисы Kubernetes. 
+
+- `ingress` - используется для сбора метрик с Ingress контроллеров.
+
+- `node` - используется для сбора метрик с нод Kubernetes (через Kubelet).
+
+Кроме того, есть еще несколько специальных role:
+
+- `pod-list` - открывает все поды, но не собирает с них метрики.
+
+- `endpoints-list` - открывает все Endpoint объекты, но не собирает метрики. 
+
+- `service-list` - аналогично для сервисов.
+
+- `ingress-list` - аналогично для ингрессов.
+
+- `node-list` - аналогично для нод.
+
+Выбор role зависит от того, откуда именно вы хотите собирать метрики в Kubernetes кластере. Например, role `endpoints` хорошо подходит для мониторинга control plane компонентов вроде `API server`, а role `pod` - для сбора метрик с рабочих приложений.
+
+### Control plane 
+Control plane (контрольная плоскость) - это набор компонентов, которые отвечают за управление Kubernetes кластером и поддержание его желаемого состояния. Основные компоненты `control plane`:
+
+- `API Server` - предоставляет API для управления кластером, является главной точкой входа для всех запросов управления кластером.
+
+- `etcd` - распределённое хранилище данных, используется API сервером для хранения данных о состоянии кластера и конфигурации. 
+
+- `Scheduler` - отвечает за планирование запуска подов на нодах кластера.
+
+- `Controller Manager` - запускает контроллеры, отвечающие за поддержание состояния разных объектов Kubernetes.
+
+- `Cloud Controller Manager` - взаимодействует с облачным провайдером при использовании Kubernetes в облаке.
+
+Таким образом, `API сервер` - это центральный компонент в `control plane Kubernetes`, который предоставляет всю API и входную точку для управления кластером. Он взаимодействует с остальными компонентами `control plane` для поддержания желаемого состояния кластера и рабочих нагрузок.
+
+
+### На примере job kubernetes-nodes
+```bash
+kubectl get nodes
+NAME                                       STATUS   ROLES    AGE     VERSION
+gke-k8s-test-k8s-node-pool-be3fb87b-1vn1   Ready    <none>   3d21h   v1.26.5-gke.1200
+```
+Метрики собираются с kubelet. kubelet запущены на всех нодах кластера и kubelet агрегирует некоторое количество метрик.
+kubelet свои метрики просто так не отдает, он требует авторизации. Поэтому метрики kubelet мы берем из api servers.
+Чтобы получить доступ к метрикам kubelet мы должны обратиться к специальному url api servers
+Этот url имеет следующий вид
+https://kubernetes.default.svc/api/v1/nodes/gke-k8s-test-k8s-node-pool-be3fb87b-1vn1/proxy/metrics
+Посмотреть можно здесь
+http://prometheus.k8s.basov.world/targets?search=
+
+Таким образом, эти правила позволяют Prometheus получать метрики нод через API сервер Kubernetes вместо прямого обращения к нодам. Это дает более надежный и масштабируемый подход для мониторинга нод.
+
+```yaml
+      job_name: kubernetes-nodes
+      # Указывем что используем Service Discovery для сбора метрик
+      kubernetes_sd_configs:
+      # Запрашиваем из API Servers все текущие ноды
+      - role: node
+      relabel_configs:
+        # создаем новые метки (labels) из собранных меток (labels) ноды. 
+      - action: labelmap
+        # Указываем какие метки мы собираем. .+ означает "один или более любых символов". Мы берем все метки вида: __meta_kubernetes_node_label_(.+)
+        # Посмотреть на метки можно здесь http://prometheus.k8s.basov.world/service-discovery?search=
+        regex: __meta_kubernetes_node_label_(.+)
+        # Заменяем адрес (это адрес kubelet например __address__="10.128.15.201:10250") на адрес API Servers kubernetes.default.svc:443 из за проблем с авторизацией в kubelet
+      - replacement: kubernetes.default.svc:443
+        target_label: __address__
+      # Берем все значения (.+) из source_labels: __meta_kubernetes_node_name т.е. имя нашей ноды
+      - regex: (.+)
+        # $1 означает что мы подставляем сюда выражение полученное из regex: (.+)
+        replacement: /api/v1/nodes/$1/proxy/metrics
+        source_labels:
+        - __meta_kubernetes_node_name
+        # Записываем получившийся путь в метрику __metrics_path__ 
+        target_label: __metrics_path__
+        # В результате значение __address__ у нас замениться на kubernetes.default.svc:443 а значени __metrics_path__ на /api/v1/nodes/gke-k8s-test-k8s-node-pool-be3fb87b-1vn1/proxy/metrics
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+```
+
+### На примере job kubernetes-service-endpoints
+Сбор метрик с endpoit-ов. т.е. c наших приложений которые мы запускаем в kubernetes
+```bash
+# Посмотреть service в формате yaml
+kubectl get svc -n nginx-ingress nginx-ingress-controller -o yaml
+```
+Аннотации которые записаны в нашем  yaml манифесте прометеус может замечать и работать с ними
+```yaml
+metadata:
+  annotations:
+    meta.helm.sh/release-name: nginx-ingress
+    meta.helm.sh/release-namespace: nginx-ingress
+```
+В prometheus точки и косые линии в аннотациях заменяются нижним подчеркиванием
+Эта аннотация meta.helm.sh/release-name в prometheus будет __meta_helm_sh_release_name c которой мы дальше можем работать
+Т.е. чтобы фильтровать наши сервисы нам нужно придумать уникальную аннотацию
+
+По умолчанию метрики собираются по протоколу http и по адресу /metrics
+Мы должны прописывать нужные аннотации в yaml файле нашего сервиса если хотим поменять это поведение например заменить на https: regex: (https?)
+Для этого в наше приложение(endpoint) нужно прописать аннотацию prometheus.io/scheme со значением "https"
+http значение по умолчанию для `__scheme__`
+Чтобы поменять значение для /metrics по-умолчанию для `__metrics_path__`
+нужно прописать нужное значение в сервисе в аннотации prometheus.io/path например значение /monitoring (если метрики находятся по этому пути)
+
+Чтобы prometheus вообще чтонибудь собирал должна быть прописана аннотация prometheus.io/scrape: "true"
+```yaml
+      job_name: kubernetes-service-endpoints
+      kubernetes_sd_configs:
+      # Собираем endpoints
+      - role: endpoints
+      relabel_configs:
+      # Здесь мы собираем все endpoints у которых есть аннотаци prometheus.io/scrape: "true"
+      # Т.е. чтобы собирать метрики нам достаточно добавить в наш сервис аннотацию prometheus.io/scrape: "true"
+      - action: keep
+        regex: true
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_scrape
+      - action: drop
+        regex: true
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_scrape_slow
+        # заменяем стандартное значение __scheme__ (на http) на значенеи https если в аннотации prometheus.io/scheme прописано значение https
+      - action: replace
+        regex: (https?)
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_scheme
+        target_label: __scheme__
+        # Заменяем значение стандартного label __metrics_path__ (по-умолчанию /metrics) на значаение прописанное в аннотации endpoint prometheus.io/path
+      - action: replace
+        regex: (.+)
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_path
+        target_label: __metrics_path__
+        # Если мы хотим поменять порт для подключения то мы можем прописать аннотацию prometheus.io/port со значением нужного нам порта для сбора метрик
+      - action: replace
+        regex: (.+?)(?::\d+)?;(\d+)
+        # лейблу __address__ применится значение __address__:__meta_kubernetes_service_annotation_prometheus_io_port
+        replacement: $1:$2
+        source_labels:
+        - __address__
+        - __meta_kubernetes_service_annotation_prometheus_io_port
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_service_annotation_prometheus_io_param_(.+)
+        replacement: __param_$1
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_namespace
+        target_label: namespace
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_service_name
+        target_label: service
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_node_name
+        target_label: node
+    - honor_labels: true
+
+```
+
+Для мониторинга например kube-dns в GKE можем создать специальный сервис для доступа к метрикам
+Посмотреть на каком порту собирать метрики 
+```bash
+kubectl get pod -n kube-system kube-dns-fc686db9b-vhk24 -o yaml
+```
+находим
+```yaml
+    ports:
+    - containerPort: 10053
+      name: dns-local
+      protocol: UDP
+    - containerPort: 10053
+      name: dns-tcp-local
+      protocol: TCP
+    - containerPort: 10055
+      name: metrics
+      protocol: TCP
+```
+
+kubectl apply -f kube-dns-metrics.yaml
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics-sidecar-kube-dns
+  labels:
+    app: metrics-sidecar-kube-dns
+  namespace: kube-system
+  annotations:
+    prometheus.io/port: "10054" 
+    prometheus.io/scrape: "true"
+spec:
+  clusterIP: None
+  ports:
+  - name: http-metrics-sidecar
+    port: 10054
+    protocol: TCP
+    targetPort: 10054
+  selector:
+    k8s-app: kube-dns
+```
+```yaml
+---
+
+apiVersion: v1  
+kind: Service
+metadata:
+  name: metrics-kube-dns
+  labels:
+    app: metrics-kube-dns
+  namespace: kube-system
+  annotations:
+    prometheus.io/port: "10055"
+    prometheus.io/scrape: "true"
+spec:
+  clusterIP: None
+  ports:
+  - name: http-metrics-kube-dns
+    port: 10055 
+    protocol: TCP
+    targetPort: 10055
+  selector:
+    k8s-app: kube-dns
+```
+## Blackbox Exporter
+### На примере job kubernetes-service
+
+Мониторинг с помощью Blackbox Exporter
+
+Если в этой yaml конфигурации мы заменяем blackbox на имя или ip нашего blackbox exporter и в yaml сервиса который мы хотим мониторить мы прописываем аннотацию prometheus.io/probe: "true" то этот job заменит адрес на адрес подходящий для сбора метрик с blackbox exporter
+
+Метрики будут собираться  с этого адреса </br>
+http://имя_blackbox_exporter/probe?module=http_2xx&target=имя_сервиса_который_хотим_мониторить
+
+```yaml
+      job_name: kubernetes-services
+      kubernetes_sd_configs:
+      # Запрашиваем все сервисы которые есть у нас в кластере
+      - role: service
+      # Переназначаем label metrics_path на /probe
+      metrics_path: /probe
+      params:
+        module:
+        - http_2xx
+      relabel_configs:
+      # Мониториться будут только сервисы с аннотацией prometheus.io/probe: "true"
+      - action: keep
+        regex: true
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_probe
+      - source_labels:
+        - __address__
+        target_label: __param_target
+      # Здесь вместо blackbox нужно указать конкретное dns имя или ip адрес нашего blackbox сервера   
+      - replacement: blackbox
+        target_label: __address__
+      - source_labels:
+        - __param_target
+        target_label: instance
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - source_labels:
+        - __meta_kubernetes_namespace
+        target_label: namespace
+      - source_labels:
+        - __meta_kubernetes_service_name
+        target_label: service
+    - honor_labels: true
+```
+```bash
+# install blackbox-exporter
+helm pull prometheus-community/prometheus-blackbox-exporter --untar
+helm upgrade --install --wait prometheus-blackbox-exporter --create-namespace --namespace monitoring ./prometheus-blackbox-exporter/
+```
+Проверяем работу exporter-а
+http://blackbox.k8s.basov.world/probe?module=http_2xx&target=prometheus.io
+или по endpoint-у
+http://10.72.0.16:9115/probe?module=http_2xx&target=prometheus.io
+
+```bash
+# Зайти внутрь контейнера и посмотреть nslookup
+kubectl exec -it -n monitoring prometheus-server-79fbf9cbcd-rpxr7 -- sh
+nslookup 10.72.0.16
+```
+Не нашел dns запись для 10.72.0.16
+
+Прописываем в values.yaml prometheus helm chart наш сервер blackbox.k8s.basov.world
+```yaml
+      # * `prometheus.io/probe`: Only probe services that have a value of `true`
+      - job_name: 'kubernetes-services'
+        honor_labels: true
+
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+
+        kubernetes_sd_configs:
+          - role: service
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+            action: keep
+            regex: true
+          - source_labels: [__address__]
+            target_label: __param_target
+          - target_label: __address__
+            # Здесь вместо blackbox нужно указать конкретное dns имя или ip адрес нашего blackbox сервера
+            replacement: blackbox.k8s.basov.world
+          - source_labels: [__param_target]
+            target_label: instance
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+```
+
+Дополнительные записи из задания
+```yaml
+          # Переназначаем label metrics_path на указанный в аннотации манифеста сервиса: prometheus.io/path: /......
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          # Переназначем порт с 80 на порт указанный в аннотации: prometheus.io/serviceport: "8080"
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_serviceport]
+            action: replace
+            target_label: __address__
+            regex: (.+?)(?::\d+)?;(\d+)
+            replacement: $1:$2
+```
+
+Прописываем в сервисах которые мы хотим мониторить новые аннотации
+prometheus.io/probe: "true"
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: prom-example-app
+  namespace: app
+  annotations:
+    prometheus.io/serviceport: "80"
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"
+    prometheus.io/probe: "true"
+spec:
+  selector:
+    name: prom-example-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+```
+```bash
+helm upgrade --install --wait prometheus --create-namespace --namespace monitoring ./prometheus
+```
+Проверяем что конфиг применился
+```bash
+kubectl edit cm -n monitoring prometheus-server
+```
+Применяем изменение в манифесте сервиса
+```bash
+kubectl apply -f example_app/
+```
+Проверяем что все применилось
+```bash
+kubectl get svc -n app prom-example-app -o yaml
+```
+Прверяем что метрики собираются
+http://prometheus.k8s.basov.world/targets?search=
+
+Проверяем что эти сервисы доступны
+Выполняем PROMQL запрос
+probe_success
+Должен быть 1
+
+Проверка через curl
+```bash
+curl -is "http://10.72.0.16:9115/probe?module=http_2xx&target=prometheus-alertmanager.monitoring.svc:9093"
+```
+или
+```bash
+curl -is "http://blackbox.k8s.basov.world/probe?module=http_2xx&target=prometheus-alertmanager.monitoring.svc:909
+3"
+```
+
+## Promtool
+Утилита для проверки конфигов и метрик
+Можем встраивать в CICD или ansible
+
+## Basic Authorization
+Настраиваем авторизацию для Prometheus
+https://kubernetes.github.io/ingress-nginx/examples/auth/basic/
+
+https://communities.sas.com/t5/SAS-Communities-Library/Configuring-Basic-Authentication-for-Prometheus-and-Alertmanager/ta-p/788803
+
+/home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/basic_auth_for_prom
+
+Создаем пароль в файл auth (здесь пароль admin)
+```bash
+htpasswd -c auth admin
+```
+Создаем секрет из файла auth
+```bash
+kubectl create secret generic basic-auth --from-file auth -n monitoring
+```
+
+Прописываем annotations в секции ingress values.yaml
+```yaml
+    annotations:
+    #   kubernetes.io/ingress.class: nginx
+      kubernetes.io/tls-acme: "true"
+      # type of authentication
+      nginx.ingress.kubernetes.io/auth-type: basic
+      # name of the secret that contains the user/password definitions
+      nginx.ingress.kubernetes.io/auth-secret: basic-auth
+      # message to display with an appropriate context why the authentication is required
+      nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required'
+```
+
+
+## /Federation
+
+Устанавливаем чарт Prometheus для Настройки Federation сервера prometheus из локальной папки prometheus
+```bash
+helm upgrade --install --wait prometheus-federation --create-namespace --namespace prometheus-federation -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_federation/federation.yaml ./prometheus/
+```
+
+/home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_federation/federation.yaml
+
+Endpoint при обращении к которому получаем список всех метрик и их значений в момент обращения
+
+Если у нас есть несколько датацентров и в каждом датацентре у нас есть свой prometheus сервер. Тогда удобно использовать Federation.
+
+Вышестоящий сервер затирает служебные метки instance и job когда собирает метрики с нижестоящих серверов. Чтобы помянять это поведение и сохранить служебные метки:  
+
+`honor_labels: true`  
+Сохранение оригинальных значений для всех меток (Если мы например собираем метки с нижестоящих серверов с помощью федерации)
+
+Если мы хотим узнать с какого именно `prometheus` сервера была получена та или иная метрика то прописываем следующую настройку:
+
+Добавление метки сервера `prometheus` ко всем метрикам  
+Прописываем на уровне нижестоящего сервера:
+```
+global: external_labels:
+  prom: prom-0
+```
+Благодоря этой метке мы всегда можем узнать с какого сервера `prometheus` была получена та или иная метрика.
+
+
+Если нужно подключаться к серверу на котором настроена авторизация то прописываем Basic Auth
+```yaml
+  prometheus.yml:
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+            - localhost:9090
+
+        # Сбор всех метрик с другого prometheus сервера.
+      - job_name: federation
+        scrape_interval: 30s
+
+        honor_labels: false
+        metrics_path: '/federate'
+
+        params:
+          # match - является обязательным полем, и в нем указывается фильтр по
+          # labels, какие метрики мы хотим получать. Через этот параметр может быть
+          # ограничен набор метрик, которые забираются с нижестоящего Prometheus
+          match[]:
+            - '{job=~".+"}'
+        static_configs:
+          # указано обращение к Prometheus через имя сервиса
+          - targets:
+            - prometheus-server.monitoring.svc:80
+        # Прописываем аутентификацию если настроена на основном сервере, только если подключаемся через доменное имя   
+        # basic_auth:
+        #   username: 'admin'
+        #   password: 'admin'
+```
+Тут надо обратить внимание на поля:  
+
+`match` - является обязательным полем, и в нем указывается фильтр по `labels`, какие метрики мы хотим получать. Через этот параметр может быть ограничен набор метрик, которые забираются с нижестоящего `Prometheus`.  
+
+`targets` - в нем указано обращение к `Prometheus` через имя сервиса.
+
+## Долгое хранение данных в prometheus
+1) `Victoria Metrics`
+2) Настраиваем дополнительный prometheus и собираем метрики с других prometheus серверов с помощью `/federation` но с более низким `scraping interval`.
+
+## Victoria Metrics
+Есть `Single Mode` и `Cluster Mode`  
+`Single mode` - все в одном бинарнике  
+`Cluster Mode` Несколько бинарников
+
+### `Cluster Mode` более гибок и предпочтителен.
+
+Поддерживается репликацию данных из коробки  
+Компоненты:
+- `vmStorage` - Это tsdb где хранятся наши метрики (Можно масштабировать)
+- `vmInsert` - Компонент через который осуществляется запись данных в tsdb (можно маштабировать и создать несколько vmInsert-ов)
+
+- `vmSelect` - компонент для извлечения данных (тоже масштабируется)
+
+- `tenant` - разделение базы данных vmStorage на несколько отдельных баз данных (похоже на namespace)
+Мы можем собирать информацию с нескольких `Prometheus` серверов и писать данные в различные `tenant` и они не будут пересекаться.
+
+- `vmAuth` - Аутентификация для кластера  
+Позволяет создавать различные учетные данные для различных tenants
+- `vmBackup` - Backup (Local, Google Cloud, Amazon S3)
+- `vmRestore` - Восстановление
+- `vmAlert` + `vmalert-cli` - Аналог Alertmanager
+- `vmAgent` - Аналог самого Prometheus, имеет такоже синтаксис
+
+### Установка Victoria Metrics в кластер
+
+https://victoriametrics.github.io/helm-charts/
+
+```bash
+helm repo add vm https://victoriametrics.github.io/helm-charts/
+helm repo update
+```
+Получаем values.yaml
+```bash
+helm show values vm/victoria-metrics-cluster > values.yaml
+```
+Меняем values.yaml:
+/home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/victoria/values.yaml
+Ключевые изменения в values.yml:
+
+Заданы ресурсы для всех объектов
+```yaml
+  # -- Resource object
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+```
+
+Задан ​podDisruptionBudget​ для всех объектов
+```yaml
+  # данная настройка влияет на то, сколько Pod может быть одновременно выключено (распространяется только на eviction API). 
+  # Она позволяет гарантировать, что при обслуживании кластера Kubernetes не будут выключены все Pod'ы с приложением.
+  podDisruptionBudget:
+    # -- See `kubectl explain poddisruptionbudget.spec` for more. Ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+    enabled: true
+    minAvailable: 1
+    # maxUnavailable: 1
+    labels: {}
+```
+
+Задан podAntiAffinity​
+```yaml
+  # данная настройка позволяет гарантировать, что Pod из
+  # StatefulSet и Pod из Deployment не будут запущены на одной node. Без
+  # данной настройки возможна ситуация, когда все Pod будут запущены на
+  # одной node, и в случае выхода из строя этой node, кластер останется без
+  # мониторинга (Pod для statefulset не перезапускаются автоматически)
+  # -- Pod affinity
+  affinity:
+      podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: vmselect
+            topologyKey: kubernetes.io/hostname
+```
+
+vmselect.extraArgs ​- добавлены следующие параметры:
+```yaml
+  extraArgs:
+    envflag.enable: "true"
+    envflag.prefix: VM_
+    loggerFormat: json
+    # ограничивает время выполнения запросов
+    search.maxQueueDuration: "10s"
+    # ограничивает максимальную длину запроса
+    search.maxQueryLen: "16384"
+    # задает сколько копий time series имеют доступ в vmStorage. Должен совпадать со значением для vmInsert
+    replicationFactor: "2"
+    # data samples, которое отличаются на значение, указанное в этом поле и менее, будут "дедуплицированы". Этот параметр обязательно использовать при значении ​replicationFactor​ 2 и больше.
+    dedup.minScrapeInterval: "1ms"
+```
+
+vmInsert.extraArgs ​- добавлены следующие параметры:
+```yaml
+  extraArgs:
+    envflag.enable: "true"
+    envflag.prefix: VM_
+    loggerFormat: json
+    # задает сколько копий time series должны быть сохранены в vmStorage
+    replicationFactor: 2
+```
+
+vmStorage.StorageClass
+```yaml
+    # -- Storage class name. Will be empty if not setted
+    storageClass: standard-rwo
+```
+
+Установка в kubernetes:
+```bash
+helm upgrade --install vm-cluster vm/victoria-metrics-cluster -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/victoria/values.yaml -n victoria --create-namespace
+```
+В результате будут установлены следующие компоненты:  
+- `vmSelect` - будет установлен как Deployment с значением replicas: 2
+- `vmInsert` - будет установлен как Deployment с значением replicas: 2
+- `vmStorage` - будет установлен как StatefulSet с значением replicas: 2
+
+#### Настройка Prometheus для Victoria Metrics
+
+То что прописываем в prometheus в values.yaml
+```yaml
+  # Настройки отвечающие за настройку внешнего хранилища для метрик например victoriametric
+  ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
+  ##
+  remoteWrite:
+  - url: http://vm-cluster-victoria-metrics-cluster-vminsert.victoria.svc:8480/insert/0/prometheus/api/v1/write
+  ```
+
+URL, куда отправляет данные Prometheus сервер, имеет следующую структуру:  
+`/<component>/<clientID>/prometheus/<Prometheus API query>`
+
+- `<component>`​ - префикс для компонента. vmInsert - ​/insert​, `vmSelect - /select`
+- `<clientID>`​ - ID клиента, может быть произвольным int и должен совпадать для `insert` и `select` запросов. За счет этого реализуется механизм `tenant`, когда в одну `Victoria Metrics` могут писать различные `Prometheus` сервера и их данные будут хранится в отдельных `tenants` (аналог `namespaсe`)
+- `<Prometheus API query>`​ - исходный запрос `Prometheus`.  
+Данная структура используется только для `Victoria Metrics` в режиме `​Cluster​`. Если вы используете `Victoria Metrics` в режиме `​Single Node`​, то запросы будут иметь структуру: `​/<Prometheus API query>`
+
+#### Установка dashboards для grafana
+kubectl create -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/grafana/victoria_metrics_dashboards -n grafana
+
+Для того, чтобы Grafana увидела новый datasource, нужно перезапустить её Pod
+kubectl delete po -n grafana grafana-6f578c8666-t4qgt
+
+## Grafana
+
+https://github.com/grafana/helm-charts/blob/main/charts/grafana/README.md
+Скачиваем values.yaml
+
+
+Меняем настройки
+```yaml
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  # Должен быть установлен cert manager с настройками 
+  # helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.12.4 --set installCRDs=true --set ingressShim.defaultIssuerName=letsencrypt-prod --set ingressShim.defaultIssuerKind=ClusterIssuer --set ingressShim.defaultIssuerGroup=cert-manager.io
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    # Прописываем Basic Authorization, Предварительно должен быть создан секрет basic-auth с именем и паролем. kubectl create secret generic basic-auth --from-file auth -n monitoring
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required'
+  labels: {}
+  path: /
+
+  pathType: Prefix
+
+  hosts:
+    - grafana.k8s.basov.world
+
+  extraPaths: []
+
+  # Устанавливаем если установлен cert manager
+  tls:
+    - secretName: chart-example-tls
+      hosts:
+      - grafana.k8s.basov.world
+```
+```yaml
+adminUser: admin
+adminPassword: grafanapassword
+```
+```yaml
+## Чтобы не слетали настройки при перезапуске графаны
+persistence:
+  type: pvc
+  enabled: true
+  # storageClassName: default
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+  # annotations: {}
+  finalizers:
+    - kubernetes.io/pvc-protection
+  # selectorLabels: {}
+  ## Sub-directory of the PV to mount. Can be templated.
+  # subPath: ""
+  ## Name of an existing PVC. Can be templated.
+  # existingClaim:
+  ## Extra labels to apply to a PVC.
+  extraPvcLabels: {}
+
+  ## If persistence is not enabled, this allows to mount the
+  ## local storage in-memory to improve performance
+  ##
+  inMemory:
+    enabled: false
+    ## The maximum usage on memory medium EmptyDir would be
+    ## the minimum value between the SizeLimit specified
+    ## here and the sum of memory limits of all containers in a pod
+    ##
+    # sizeLimit: 300Mi
+```
+root_url - он нужен например для расылки инвайтов на почту где будут генерироваться линки для новых пользователей, для подключения сторонней аутентификации
+```yaml
+grafana.ini:
+
+  server:
+      # The full public facing url you use in browser, used for redirects and emails
+    root_url: https://grafana.k8s.basov.world
+```
+
+install grafana
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+helm upgrade --install --wait --atomic grafana grafana/grafana \
+  --set adminPassword=grafanapassword \
+  --values /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/grafana/values.yaml \
+  --create-namespace \
+  -n grafana
+```
+
+Получить пароль если не устанавливали
+```bash
+kubectl get secret --namespace grafana grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+kubectl get ingress --all-namespaces
+```
+
+### Добавляем New Datasource в Grafana
+
+Data Sources - Add new data source
+
+Выбираем будет ли он default или нет
+
+Прописываем имя сервиса вместе с namespace
+Prometheus server URL: http://prometheus-server.monitoring.svc.cluster.local
+
+Save and Test
+
+Идем в Explorer
+Code
+
+Вводим Query
+kube_deployment_status_replicas_available
+
+Run Query - Проверяем что работает
+
+### Добавляем новый dashboard
+
+`Home` - `Dashboards`  
+`New Folder` - `Test` - `Create`: Создаем папку для dashboards  
+`New Dashboard `- Нажимаем на иконку "`​механизм​, шестеренка"`:  
+
+Name​: `Our first dash`  
+​Description​: `test-test-test`   
+Folder: `Test`  
+`Save dashboard​.`  
+
+`Add Visualization`
+
+- Создаем две метрики с учетом будущего подключения фильтрации по `namespaces`
+
+  `kube_deployment_status_replicas_available{namespace=~"$Namespace"}`  
+  Legend:  
+  `Available: {{ deployment }}, ns: {{namespace}}`
+
+  `kube_deployment_status_replicas_unavailable{namespace=~"$Namespace"}`  
+  Legend:  
+  `Unavailable {{ deployment }} ns: {{namespace}}`
+
+
+- Создадим вторую `Visualization панель`  
+Выберем метод отображения `gauge`  
+`kube_deployment_status_replicas_available{namespace=~"$Namespace"}`
+  Legend:  
+`{{ deployment }}` Type: Instant  (Последнее значение)
+Value Option - Calculate - Last
+
+- Настройим фильтрацтю по `namespace`  
+Создадим переменную, по которой можно будет фильтровать метрики по `namespace`.
+
+  `Dashboard settings` - `variables` - `New Variable`
+
+  Variable Type: `Query`  
+  Name: `Namespace`  
+  Show on dashboard: `Label and value`  
+  `Query options`:  
+
+      Data source: `Prometheus`  
+      Query type: `Label values`  
+      Label: `namespace`  
+      Metric: `kube_deployment_status_replicas_available`  
+      Label filters: `Select label` - `select value`  
+
+      `On time range change`  
+      `multi-value`: галка +  
+      `include All option:` галка +  
+
+  Фильтрация будет происходить если в конец метрики добавить  
+  `​{namespace=~"$Namespace"}`
+
+- Поставим самый популярный дашборд.
+  https://grafana.com/grafana/dashboards/
+  Node Exporter Full
+  
+  Dashboards - New - Import  
+  Import via grafana.com: 1860
+
+- `Plugins`
+  Можете перейти на сайт и просмотреть какие есть плагины -
+  https://grafana.com/grafana/plugins
+
+  У каждого плагина есть инструкция по установке.  
+  Мы будем устанавливать плагин - `Pie Chart` (В нынешней версии графаны уже есть по-умолчанию). Давайте же приступим.  
+  Посмотрим вывод команды  
+  `watch kubectl get po,ing,secrets,svc -n monitoring`  
+  Возьмем имя пода с grafana'ой, у меня это - `​pod/grafana-56dd55f874-nlmwf` ​и зайдем в этот под.  
+  `k exec -ti pod/grafana-56dd55f874-nlmwf bash -n monitoring`  
+  Вводим команду на установку плагина - `Pie Chart`  
+  `grafana-cli plugins install grafana-piechart-panel`
+
+  Выйдем из пода.  
+  Удалим под, чтобы новый под уже был с нашим плагином.  
+  `k delete pod/grafana-56dd55f874-nlmwf -n monitoring`
+
+### Работа с пользователями в Grafana
+
+`Роли`:
+  - `viewer`
+  - `editor`
+  - `admin`
+
+`Teams`  
+Пользователей можно добавлять в `teams` и добавлять teams права
+
+`ORGs`  
+Организации, самый высокоуровневый способ разграничения доступа
+
+Настройка  
+`Administration` - `Users` - `New user`
+Или через Invite
+`Administration` - `Users` - `Organization users` - `Invite` - Вводим данные - `Submit`
+`Organization users` - `Pending Invites` - `Copy invite` - `Можем послать пользователю`
+
+Organizations - Main Orgs - Change Role - Можем сменить роль
+
+### Как преобразовать числовое unix время в нормальный формат
+https://community.grafana.com/t/convert-epoch-metric-to-datetime/101086/6
+
+Teams - New team - Вводим данные - 
+
+Можем раздавать доступы для пользователей и команд на папки dashboards в разделах permission
+Можем создавать новые организации, в новой организации ничего нет, выбирать организации в левом верхнем углу. 
+
+В разные организации можно добавлять одних и тех же пользователей.
+
+Grafana умеет работать с внешними OAuth сервисами например GitHub, умеет работать с LDAP.
+
+Authentification прописывается в values.yaml
+
+Например для Github
+```yaml
+ https://grafana.com/docs/grafana/latest/auth/github/#enable-github-in-grafana
+ auth.github:
+    enabled: true
+    allow_sign_up: true
+    scopes: user:email,read:org
+    auth_url: https://github.com/login/oauth/authorize
+    token_url: https://github.com/login/oauth/access_token
+    api_url: https://api.github.com/user
+    # 
+    team_ids:
+    # Вводим организацию в Github у которой будут права на доступ к Grafana:
+    allowed_organizations: devopsprodigy
+    # Эти параметры создаем на странице Github:
+    client_id:
+    client_secret:
+```
+
+Появится кнопка `Sign in with GitHub`
+
+### Provisioning
+
+Директория находится здесь:
+provisioning: /etc/grafana/provisioning  
+values.yaml:
+
+```yaml
+grafana.ini:
+  paths:
+    data: /var/lib/grafana/
+    logs: /var/log/grafana
+    plugins: /var/lib/grafana/plugins
+    provisioning: /etc/grafana/provisioning
+```
+При старте графаны все конфигурации будут подтягиваться из этого каталога
+
+Секция plugins, с какими плагинами grafana будет запускаться:
+```yaml
+plugins: []
+```
+
+Набор Datasources при запуске
+
+```yaml
+datasources: {}
+```
+
+dashboads:
+```yaml
+dashboards: {}
+```
+
+#### Provisioning Datasorces
+
+Добавим на Datasource Через values.yaml и удалим старый
+
+```yaml
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      url: http://prometheus-server.monitoring.svc.cluster.local
+      access: proxy
+      isDefault: true
+#    - name: CloudWatch
+#      type: cloudwatch
+#      access: proxy
+#      uid: cloudwatch
+#      editable: false
+#      jsonData:
+#        authType: default
+#        defaultRegion: us-east-1
+    deleteDatasources:
+    - name: Prometheus
+```
+И обновляем графану
+```bash
+helm upgrade --install --wait --atomic grafana grafana/grafana --set adminPassword=grafanapassword --values /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/grafana/values.yaml --create-namespace -n grafana
+```
+
+Сделаем новую переменную для выбора Datasource
+
+Наш Dashboard - Settings - Variables:  
+Select variable type: Data Source
+
+Data source options
+Type: Prometheus - тип наших Datasources
+Apply
+
+Заходим в Visualization - Data source
+
+#### Provisioning plugins
+
+Добавим plugin через values.yaml  
+https://grafana.com/grafana/plugins/smartmakers-trafficlight-panel/
+
+Копируем его имя в секции installations  
+smartmakers-trafficlight-panel
+
+Добавляем
+```yaml
+## Pass the plugins you want installed as a list.
+##
+plugins:
+  - smartmakers-trafficlight-panel
+```
+
+Проверяем что plugin появился  
+Home - Administration - Plugins -TrafficLight
+
+
+#### Provisioning Dashboards
+
+После того как мы сделали dashboard, идем в 
+Значек сверху   
+Share dashboard or panel - Export - Export for sharing externally вкл. - Save to File
+
+
+Почему то не заработало как должно:
+Можно добавлять в RAW форматк также
+```yaml
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: 'monitoring'
+      orgId: 1
+      folder: 'monitoring'
+      type: file
+      disableDeletion: true
+      editable: true
+      options:
+        # Пути где находятся Dashboards
+        path: /var/lib/grafana/dashboards/default
+
+## Configure grafana dashboard to import
+## NOTE: To use dashboards you must also enable/configure dashboardProviders
+## ref: https://grafana.com/dashboards
+##
+## dashboards per provider, use provider name as key.
+##
+dashboards:
+  # Имя dashboardProvider (Папки в Grafana)
+  monitoring:
+    custom-dashboard:
+      file: dashboards/pie_chart2.json
+    # Имя Дашборда
+    node-exporter:
+      gnetId: 1860
+      revision: 32
+      datasource: "Prometheus"
+```
+
+## Prometheus Operator
+
+`Prometheus Operator`- это проект в экосистеме Kubernetes, который предоставляет автоматизированный и управляемый способ развертывания, настройки и масштабирования сервера мониторинга Prometheus и связанных компонентов в кластере Kubernetes.
+
+Prometheus Operator управляет кастомными ресурсами Kubernetes CustomResourceDefinition (CRD), в кластере kubernetes.
+
+CRD, это фактически расширение API Kubernetes, позволяя создавать и управлять своими собственными объектами через Kubernetes API сервер.
+
+`Prometheus Operator CRD`
+1. `Prometheus` - описывает установку Prometheus
+2. `Alertmanager` - описывает установку Alertmanager
+3. `ServiceMonitor` - Аналог service discovery (прописываем аннотации в поды чтобы он мониторился в Prometheus), описывает за какими сервисами нужно следить, какие порты должны использоваться в этом сервисе, как часто нужно делать scrape по какому endpoint находятся метрики... На основе этого он генерирует конфигурационный файл, для Prometheus Scraping.
+4. `PodMonitor` - тоже самое только для pod, потому что не все поды имеют сервисы
+5. `Probe` - Описывает список Ingress для добавления в мониторинг, например для BlackBox Exporter.
+6. `PrometheusRule` - описывает набор Rules (Правил), которые будут добавлены в Prometheus Аналог ServiceMonitor
+7. `AlertManagerConfig` - описывает набор Alerts которые будут добавлены в Prometheus
+
+### Grafana
+Чтобы загрузить новые dashboards или datasources в графану, нужно прописать `ConfigMaps` с определенными аннотациями. И контейнеры в pod с grafana отслеживают ConfigMaps с определенными аннотациями и монтируют эти ConfigMaps графане.
+
+### Prometheus Про что важно не забыть
+1. `Prometheus` нужно устанавливать минимум в 2 копии, потому что он StatefulSet
+2. Нужно настраивать basic auth
+3. retension size - ограничение размера данных которые он хранит.
+4. Alertmanager - минимум в 3 копии
+5. Alertmanager - authenrification
+6. Grafana - dashboards храним только в git и подгружаем их отдельно в виде configmaps.
+
+### Установка
+
+```bash
+# Prometheus Operator Install
+helm repo update
+kubectl create ns prometheus-operator
+# Create Secret for basic auth
+htpasswd -c auth admin
+kubectl create secret generic admin-basic-auth --from-file=auth -n prometheus-operator
+# Проверка
+kubectl get secrets -n prometheus-operator admin-basic-auth
+
+helm upgrade --install prom-operator prometheus-community/kube-prometheus-stack --namespace prometheus-oper --create-namespace -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_operator/changed_values.yaml
+```
+
+### Настройка Servicemonitor и Podmonitor
+
+#### Servicemonitor
+
+Servicemonitor - это абстракция, с помощью которой реализован механизм Service discovery в Prometheus Operator. В данной абстракции описывается, из каких Service необходимо получить список Endpoint, и задаются правила, по которым необходимо производить scraping. В общем случае манифест Servicemonitor выглядит примерно так:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: prom-kube-prometheus-nodexporter
+spec:
+  # содержит настройки, по которым должен производиться
+  # scraping, такие как: частота опроса, endpoint, может быть указан
+  # аутентификация, настройки tls и так далее.
+  endpoints:
+  - interval: 1m
+    path: /metrics
+    # задается порт, по которому будет производиться
+    # scraping. Важной особенностью является то, что Servicemonitor работает
+    # только с именованными портами, то есть указать port: 443 нельзя.
+    port: metrics-port
+  # задает, в каком namespace будет производиться
+  # scraping. Возможные значения: matchNames и any: true/false. В случае
+  # использования any: true будет производиться по всем namespace.
+  namespaceSelector:
+    matchNames:
+      - prometheus-operator
+  # содержит настройку, какие labels должна содержать служба,
+  # для которой будет получаться список endpoints. Может содержать следующие параметры:
+  selector:
+    # список labels, которые должны быть у службы.
+    matchLabels:
+      app: example
+    # matchExpressions - регулярное выражение для discovery Service на основании наличия или отсутствие labels. Формат регулярных выражений:
+    # - key: serviceapp
+    #   operator: Exists
+```
+
+Полный список полей можно посмотреть здесь:  
+https://docs.openshift.com/container-platform/4.4/rest_api/monitoring_apis/servicemonitor-monitoring-coreos-com-v1.html  
+
+#### PodMonitor
+
+PodMonitor - это абстракция, с помощью которой реализован механизм Service
+discovery в Prometheus Operator. В данной абстракции описываются, какие Pod
+необходимо добавить в Prometheus и правила, по которым необходимо
+производить scraping. В общем случае, манифест PodMonitor выглядит примерно
+так:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: example-app
+spec:
+  # задает, в каком namespace будет производиться scraping Возможные значения: ​matchNames​ и ​any: true/false​. В случае использования ​any: true​ будет производиться по всем namespace.
+  namespaceSelector:
+    matchNames:
+      - prometheus-operator
+  # содержит настройку, какие метки должна содержать служба, для которой будет получаться список endpoints. Может содержать следующие параметры: ​matchNames​ и ​any: true/false​. В случае использования ​any: true будет производиться по всем namespace.
+  selector:
+    matchLabels:
+      app: example
+  # содержит описание, какие порты должны использоваться для scraping, а также другие настройки, относящиеся к scraping.
+  podMetricsEndpoints:
+  - port: web
+  honorLabels: true
+```
+
+Полный список полей можно посмотреть здесь:  
+https://docs.openshift.com/container-platform/4.4/rest_api/monitoring_apis/podmonitor-monitoring-coreos-com-v1.html
+

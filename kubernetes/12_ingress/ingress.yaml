@@ -1,0 +1,43 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: main-ingress
+  # annotations:
+    # rewrite правило, перенаправляет все запросы на корневой путь /
+    # nginx.ingress.kubernetes.io/rewrite-target: /  
+spec:
+  rules:
+  # Все запросы которые приходят на этот хост будут перенаправляться на этот сервис
+  - host: vasiliy.basov.world
+    http:
+      paths:
+        # Тип Prefix означает что все запросы которые начинаются на vasiliy.basov.world/... будут перенаправляться на наш сервис вместо ... может быть все что угодно
+        - pathType: Prefix
+          path: /
+          backend:
+            # Указываем имя сервиса и порт сервиса куда будет посылаться трафик с запросов которые будут приходить на хост vasiliy.basov.world
+            service:
+              name: kuber-service
+              port: 
+                number: 80
+
+        # Тип Exact означает что только запросы vasiliy.basov.world/v2 будут обрабатываться
+        # - pathType: Exact
+        #   path: /v2
+        #   backend:
+        #     service:
+        #       name: kuber-service
+        #       port: 
+        #         number: 80
+  # Если мы поставили nginx ingress controller то мы должны указать эту настройку иначе не выдастся ip адрес
+  ingressClassName: nginx
+  # - host: app-v3.example.com
+  #   http:
+  #     paths:
+  #       - pathType: Exact
+  #         path: /
+  #         backend:
+  #           service:
+  #             name: kuber-service-v3
+  #             port: 
+  #               number: 80

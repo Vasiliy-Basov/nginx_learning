@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+# Чтобы метрики появились нужно добавить --set controller.metrics.enabled=true в nginx ingress
+# https://github.com/kubernetes/ingress-nginx/tree/main/charts/ingress-nginx
+metadata:
+  name: prom-kube-prometheus-nginx
+  annotations:
+    meta.helm.sh/release-name: prom-operator
+    meta.helm.sh/release-namespace: prometheus-oper
+  labels:
+    app.kubernetes.io/instance: prom-operator
+    app.kubernetes.io/name: nginx-ingress
+    app: nginx-ingress
+    component: controller
+    release: prom-operator
+spec:
+  # список labels, которые должны быть у службы которую мы будем мониторить.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  endpoints:
+  - port: metrics
+    interval: 1m
+    path: /metrics
+  jobLabel: prom-operator
+  namespaceSelector:
+    matchNames:
+      - ingress-nginx

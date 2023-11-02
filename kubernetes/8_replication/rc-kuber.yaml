@@ -1,0 +1,24 @@
+---
+apiVersion: v1
+# Следит чтобы было запущено определенное количество подов
+kind: ReplicationController
+metadata:
+  name: kuber-rc
+spec:
+  replicas: 3
+  # Будет действовать только на поды с этими метками
+  selector:
+    app: http-server
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      name: kuber-app
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: resume-test
+        image: vasiliybasov/resume:1.0
+        ports:
+        - containerPort: 80

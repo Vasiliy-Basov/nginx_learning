@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuber-private
+  labels:
+    app: kuber-private
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: http-server-private
+  template:
+    metadata:
+      labels:
+        app: http-server-private
+    spec:
+      # Секрет для pull docker image from private registry
+      # Сам секрет создаем так: kubectl create secret docker-registry secret-docker-registry --docker-email=vasiliy.basov.82@gmail.com --docker-username=vasiliybasov --docker-password=Сюда_вставляем_наш_токен --docker-server=https://index.docker.io/v1/
+      imagePullSecrets:
+      - name: secret-docker-registry
+      containers:
+      - name: kuber-app
+        image: vasiliybasov/kuber-private
+        ports:
+        - containerPort: 80

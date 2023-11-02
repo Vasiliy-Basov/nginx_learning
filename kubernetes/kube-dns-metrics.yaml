@@ -1,0 +1,21 @@
+# Сервис для сбора метрик в Prometheus kube-dns в GKE
+apiVersion: v1  
+kind: Service
+metadata:
+  name: metrics-kube-dns
+  labels:
+    app: metrics-kube-dns
+  namespace: kube-system
+  annotations:
+    prometheus.io/port: "10055"
+    prometheus.io/scrape: "true"
+spec:
+  clusterIP: None
+  ports:
+  - name: http-metrics-kube-dns
+    port: 10055 
+    protocol: TCP
+    targetPort: 10055
+  selector:
+    k8s-app: kube-dns
+# kubectl apply -f kube-dns-metrics.yaml

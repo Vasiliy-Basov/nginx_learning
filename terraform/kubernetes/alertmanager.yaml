@@ -1,0 +1,29 @@
+global:
+  # оповещения будут отправляться в течении этого времени с промежутками group_interval и repeat_interval 
+  resolve_timeout: 5m
+
+route:
+  # Группирует оповещения по метке alertname, что означает, что оповещения с одним и тем же alertname будут объединены в одну группу.
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 30s
+  # Выбираем получателя
+  receiver: 'email'
+receivers:
+# Создаем получателя
+- name: 'email'
+  email_configs:
+  - to: 'baggurd@gmail.com'
+    from: 'BasovaLarisa2288@gmail.com'
+    smarthost: smtp.gmail.com:587
+    auth_username: 'BasovaLarisa2288@gmail.com'
+    auth_identity: 'BasovaLarisa2288@gmail.com'
+    auth_password: 'Perviy!Dino77@'
+# Правило подавления. Если все три метки определены в правилах алерта  'alertname', 'dev', 'instance' в файле custom_values.yml и есть оповещения с critical и с warning то оповещения warning не будут отправляться.
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']

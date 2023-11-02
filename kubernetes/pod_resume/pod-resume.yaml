@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: resume-test-2
+  labels:
+    app: resume-web
+spec:
+  containers:
+  - name: resume-test-2
+    image: vasiliybasov/resume:1.0
+    ports:
+    - containerPort: 80

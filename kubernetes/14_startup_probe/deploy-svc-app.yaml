@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuber
+  labels:
+    app: kuber
+spec:
+  replicas: 3
+  # Замедляем раскрутку, через 10 сек pod будет считаться доступным и принимать трафик
+  minReadySeconds: 10
+  strategy:
+    rollingUpdate:
+      # Сколько подов может быть создано дополнительно
+      maxSurge: 1
+      # Сколько подов будет убиваться
+      maxUnavailable: 1
+    # Обновление будет происходить постепенно (по умолчанию)
+    type: RollingUpdate
+  # Будет действовать только на поды с соответствующими labels
+  selector:
+    matchLabels:
+      app: http-server
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: resume-test
+        image: vasiliybasov/resume:1.0
+        ports:
+        - name: http
+          containerPort: 80
+        # Проверка того что контейнер отвечает если не отвечает то перезапускает его
+        livenessProbe:
+          httpGet:
+            # Путь по которому происходит проверка c учетом httpHeaders
+            path: /
+            httpHeaders:
+            # Имя httpHeader (Host в нашем случае)
+            - name: Host
+              # Значание httpHeader
+              value: vasiliy.basov.world
+            port: 80
+          initialDelaySeconds: 5
+          # Запросы каждые 5 секунд
+          periodSeconds: 5
+        # Проверка того что контейнер отвечает если не отвечает то перестает слать на него трафик
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuber-service
+spec:
+  # На основании этого селектора происходит доступ к подам где прописан такой же label
+  selector:
+    app: http-server
+  ports:
+    - name: http
+      protocol: TCP
+      # Порт сервиса
+      port: 80
+      # Порт контейнера (вместо номера порта также можем использовать имя)
+      # Тогда имя должно быть задано в секции spec.ports в Deployment
+      targetPort: http
+  # Default Type. Ip назначается в пределах кластера. Только внутренний.
+  type: ClusterIP

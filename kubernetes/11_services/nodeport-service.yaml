@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuber-service-nodeport
+spec:
+  externalTrafficPolicy: Local
+  # Это поле идентично тому которое есть в Deployment чтобы взаимодействовать с теми же pods
+  selector:
+    app: http-server
+  ports:
+    - protocol: TCP
+      # Порт по которому будет отвечать сам сервис
+      port: 80
+      # Порт на контейнерах pods (containerPort) к которым подключаемся.
+      targetPort: 80
+      nodePort: 30080 # port-range: 30000-32767
+  type: NodePort

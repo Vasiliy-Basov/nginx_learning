@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuber
+  labels:
+    app: kuber
+spec:
+  replicas: 3
+  # Замедляем раскрутку, через 10 сек pod будет считаться доступным и принимать трафик
+  minReadySeconds: 10
+  strategy:
+    rollingUpdate:
+      # Сколько подов может быть создано дополнительно
+      maxSurge: 1
+      # Сколько подов будет убиваться
+      maxUnavailable: 1
+    # Обновление будет происходить постепенно (по умолчанию)
+    type: RollingUpdate
+  # Будет действовать только на поды с соответствующими labels
+  selector:
+    matchLabels:
+      app: http-server
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: resume-test
+        image: vasiliybasov/resume:1.0
+        ports:
+        - name: http
+          containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuber-service
+spec:
+  # На основании этого селектора происходит доступ к подам где прописан такой же label
+  selector:
+    app: http-server
+  ports:
+    - name: http
+      protocol: TCP
+      # Порт сервиса
+      port: 80
+      # Порт контейнера (вместо номера порта также можем использовать имя)
+      # Тогда имя должно быть задано в секции spec.ports в Deployment
+      targetPort: http
+  # Default Type. Ip назначается в пределах кластера. Только внутренний.
+  type: ClusterIP

@@ -1,0 +1,25 @@
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: kuber-rs-1
+  labels:
+    app: kuber-rs
+spec:
+  replicas: 3
+  # Будет действовать только на поды с этими метками
+  selector:
+    matchLabels:
+      env: dev
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        env: dev
+    spec:
+      containers:
+      - name: resume-test
+        image: vasiliybasov/resume:1.0
+        ports:
+        - containerPort: 80

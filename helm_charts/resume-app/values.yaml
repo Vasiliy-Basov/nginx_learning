@@ -1,0 +1,13 @@
+---
+service:
+  containerPort: 80
+  externalPort: 80
+
+image:
+  repository: vasiliybasov/resume
+  tag: "1.0"
+
+host: test01.basov.world
+email: vasiliy.basov.82@gmail.com
+letsencryptserver: https://acme-v02.api.letsencrypt.org/directory
+ingressClassName: nginx

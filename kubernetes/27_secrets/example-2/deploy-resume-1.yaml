@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resume-secret-1
+  labels:
+    app: resume-secret-1
+spec:
+  replicas: 1
+  # Замедляем раскрутку, через 10 сек pod будет считаться доступным и принимать трафик
+  minReadySeconds: 10
+  strategy:
+    rollingUpdate:
+      # Сколько подов может быть создано дополнительно
+      maxSurge: 1
+      # Сколько подов будет убиваться
+      maxUnavailable: 1
+    # Обновление будет происходить постепенно (по умолчанию)
+    type: RollingUpdate
+  # Будет действовать только на поды с соответствующими labels
+  selector:
+    matchLabels:
+      app: http-server
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: resume-secret-test
+        image: vasiliybasov/resume:1.0
+        ports:
+        - name: http
+          containerPort: 80
+        # Вместо переменных окружения env мы монтируем в файлы (в нашем случае файлы password и username) наши секреты внутрь нашего контейнера по пути /etc/secrets.
+        # На самом деле password и username будут там в качестве линков сами файлы находятся внутри каталога со временем создания.
+        volumeMounts:
+        - name: secrets
+          mountPath: "/etc/secrets"
+      volumes:
+      - name: secrets
+        secret:
+          secretName: secret-data
+          # права на файлы которые будут создаваться
+          defaultMode: 0400

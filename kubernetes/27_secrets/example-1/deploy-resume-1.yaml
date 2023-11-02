@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resume-secret-1
+  labels:
+    app: resume-secret-1
+spec:
+  replicas: 1
+  # Замедляем раскрутку, через 10 сек pod будет считаться доступным и принимать трафик
+  minReadySeconds: 10
+  strategy:
+    rollingUpdate:
+      # Сколько подов может быть создано дополнительно
+      maxSurge: 1
+      # Сколько подов будет убиваться
+      maxUnavailable: 1
+    # Обновление будет происходить постепенно (по умолчанию)
+    type: RollingUpdate
+  # Будет действовать только на поды с соответствующими labels
+  selector:
+    matchLabels:
+      app: http-server
+  # Шаблон на основе которого будут создаваться поды
+  template:
+    metadata:
+      # Labels должны совпадать с теми которые указаны в блоке selector
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: resume-secret-test
+        image: vasiliybasov/resume:1.0
+        ports:
+        - name: http
+          containerPort: 80
+        # Получаем переменные для контейнера из секрета secret-data
+        # Дополнительные переменные окружения будут добалены в контейнер и названия этих переменных будут соответствовать ключам секрета.
+        envFrom:
+        - secretRef:
+            name: secret-data
