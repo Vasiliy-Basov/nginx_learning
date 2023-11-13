@@ -1,0 +1,44 @@
+replicas: 1
+# Потребляет много ресурсов потому что написана на Java
+# Для Production оперативки нужно больше 4-8 Gb и "-Xmx1g -Xms1g" соответственно тоже больше 
+# Эти значения должны быть в два раза меньше чем мы устанавливаем для оперативной памяти resources
+esJavaOpts: "" # example: "-Xmx1g -Xms1g" or "-Xmx512m -Xms512m"
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
+# Меняем под наши нужды storage
+volumeClaimTemplate:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+
+# Enabling this will publicly expose your Elasticsearch instance.
+# Only enable this if you have security enabled on your cluster
+ingress:
+  enabled: false
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+
+  # kubernetes.io/ingress.class: nginx
+  # kubernetes.io/tls-acme: "true"
+  className: "nginx"
+  pathtype: ImplementationSpecific
+  hosts:
+    - host: elasticsearch.kubernetes.basov.world
+      paths:
+        - path: /
+  tls:
+    - secretName: elasticsearch-general-tls
+      hosts:
+        - elasticsearch.kubernetes.basov.world
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local

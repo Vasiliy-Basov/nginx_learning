@@ -3736,3 +3736,528 @@ spec:
 Полный список полей можно посмотреть здесь:  
 https://docs.openshift.com/container-platform/4.4/rest_api/monitoring_apis/podmonitor-monitoring-coreos-com-v1.html
 
+### Что делать если закончилось место для prometheus, как расширить PVC?
+
+Инструкция https://prometheus-operator.dev/docs/operator/storage/#resizing-volumes
+
+Применяем изменения:
+```yaml
+prometheus:
+  prometheusSpec:
+# Меняем настройку paused на true
+    paused: true
+    retentionSize: "500MB"
+    replicas: 1
+# Меняем настройку Storage на нужный нам объем
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard-rwo
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+```
+
+```bash
+# Resize Persistent Volume Claim (PVC) Prometheus Operator
+# PVC должны быть связаны иначе будет ошибка spec is immutable after creation except resources.requests for bound claims
+# -l здесь значит pvc с нужным нам label
+for p in $(kubectl get pvc -l operator.prometheus.io/name=prom-operator-kube-prometh-prometheus -n prometheus-oper -o jsonpath='{range .items[*]}{.metadata.name} {end}'); do \
+  kubectl -n prometheus-oper patch pvc/${p} --patch '{"spec": {"resources": {"requests": {"storage":"5Gi"}}}}'; \
+done
+```
+
+У меня и без этого заработало:
+```bash
+# delete the underlying StatefulSet using the orphan deletion strategy
+kubectl delete statefulset -n prometheus-oper -l operator.prometheus.io/name=prom-operator-kube-prometh-prometheus --cascade=orphan
+```
+
+Применяем изменения назад:
+```yaml
+prometheus:
+  prometheusSpec:
+# Меняем настройку paused на true
+    paused: false
+```
+
+### Ставим на мониторинг Nginx ingress сервис 
+
+Сначала нужно включить метрики в nginx ingress
+
+Чтобы метрики появились нужно добавить `--set controller.metrics.enabled=true` в nginx ingress  
+https://github.com/kubernetes/ingress-nginx/tree/main/charts/ingress-nginx
+
+Проверяем что метрики появились:  
+Должен появится новый сервис ingress-nginx-controller-metrics
+
+Делаем curl с любой ноды
+```bash
+curl 10.76.11.44:10254/metrics
+```
+
+Создаем ServiceMonitor  
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+# Чтобы метрики появились нужно добавить --set controller.metrics.enabled=true в nginx ingress
+# https://github.com/kubernetes/ingress-nginx/tree/main/charts/ingress-nginx
+metadata:
+  name: prom-kube-prometheus-nginx
+  annotations:
+    meta.helm.sh/release-name: prom-operator
+    meta.helm.sh/release-namespace: prometheus-oper
+  labels:
+    app.kubernetes.io/instance: prom-operator
+    app.kubernetes.io/name: nginx-ingress
+    app: nginx-ingress
+    component: controller
+    release: prom-operator
+spec:
+  # список labels, которые должны быть у службы которую мы будем мониторить.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  endpoints:
+  - port: metrics
+    interval: 1m
+    path: /metrics
+  jobLabel: prom-operator
+  namespaceSelector:
+    matchNames:
+      - ingress-nginx
+```
+
+Применяем
+```bash
+kubectl apply -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_operator/servicemonitor_ingress.yaml -n prometheus-oper
+```
+
+Проверяем в prometheus что метрики собираются:  
+nginx_ingress_controller_response_size_sum
+
+### Настройка Prometheus rules
+
+Нужны для агрегации данных и создания новых метрик на основе существующих данных.
+
+Также Создание правил мониторинга позволяет настраивать автоматическое масштабирование вашего приложения на основе метрик. Например, вы можете создать правило, которое автоматически увеличивает количество ресурсов, выделяемых приложению, если определенная метрика превышает порог.
+
+Custom resource `PrometheusRule` достаточно простой, он содержит стандартные
+поля Kubernetes абстракции, а в поле spec описываются Rules с таким же
+синтаксисом, как и у Prometheus. В общем случае, `PrometheusRule` выглядит
+примерно так:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: prometheus-example-rules
+spec:
+  # Определяем группу правил
+  groups:
+  - name: node.rules
+  # Правила
+  rules:
+  - expr: sum(min(kube_pod_info{node!=""}) by (cluster, node))
+    record: ':kube_pod_info_node_count:'
+  - expr: |-
+    topk by(namespace, pod) (1,
+      max by (node, namespace, pod) (
+        label_replace(kube_pod_info{job="kube-state-metrics",node!=""}, "pod", "$1", "pod", "(.*)")
+    ))
+    record: 'node_namespace_pod:kube_pod_info'
+```
+
+
+Создаем свое правило
+
+
+Создайте `PrometheusRule` с именем: `​prom-ingress.rules`​,
+который вычисляет выражение: ​rate`(nginx_ingress_controller_requests[5m])`
+и сохраняет его с именем: `​nginx_ingress_controller_requests_per_second`​.
+Имя группы: `​Ingress`
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: prom-ingress.rules
+  annotations:
+    meta.helm.sh/release-name: prom-operator
+    meta.helm.sh/release-namespace: prometheus-oper
+  labels:
+    app.kubernetes.io/instance: prom-operator
+    release: prom-operator
+spec:
+  groups:
+  - name: Ingress
+    rules:
+    - expr: rate(nginx_ingress_controller_requests[5m])
+      record: nginx_ingress_controller_requests_per_second
+```
+
+Применяем
+```bash
+kubectl apply -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_operator/prometheusrule_ingress.yaml -n prometheus-oper
+```
+
+Проверить что правило появилось
+https://prometheus.kubernetes.basov.world/rules
+или запрос `nginx_ingress_controller_requests_per_second`
+
+## Логи Kubernetes (EFK) или (Loki Promtail Grafana)
+
+Посмотреть логи с помощью kubernetes:
+```bash
+k logs -n kube-system kube-dns-5bfd847c64-hmtjt
+```
+
+Логи хранятся на нодах в директории
+`/var/log/pods/`
+и  
+`/var/log/containers/`
+
+Логи общепринято забирают с `/var/log/pods/`
+
+Например:
+```bash
+cat /var/log/pods/ingress-nginx_ingress-nginx-controller-5b9d6f6bb-dtrjj_a96e5282-3eb0-4152-9ad2-6ab6c3c6169f/controller/0.log
+```
+
+Мы можем собирать все логи как логи подов кроме логов `kubelet` и логи `docker` которые мы можем собрать с помощью:
+
+```bash
+journalctl -u kubelet
+journalctl -u docker
+```
+
+### Проблема логов kubernetes
+
+1. При пересоздании pods логи этих pods тоже удаляются (Предыдущие версии)  
+2. Мы хотим агрегировать логи с нескольких инстансов.
+3. Добавлять Мета информацию (например с какой ноды логи в каком namespace)
+4. Парсить (Выделять набор полей в логах и разделять логи по уровню важности)
+
+### FluentD и FluentBit
+написаны одним разраюотчиком  
+`fluentd` более тяжеловесный написан на более медленном языке и меньше подходит для `kubernetes`.
+
+В облаках обычно используют `FluentBit` (Агент сборщика логов)
+
+Сборщика устанавливаем с помощью `DeamonSet` чтобы он был на каждой ноде.
+
+### Loki Promtail Grafana
+
+`FluentBit` Заменяем на `PromTail`
+`Loki` - продукт для логирование от `Grafana` - гораздо более легковесны и лучше чуыствует себя в кластере kubernetes, но он не предназначен для огромных инфраструктур. 
+Хороша для небольших кластеров. (Проще и удобнее чем ElasticSearch)
+
+### Установка EFK
+
+#### См. ниже как ставить версию 7.17.3
+
+#### Установка ElasticSearch
+```bash
+helm repo add elastic https://helm.elastic.co
+helm repo update
+helm search repo elastic
+helm show values elastic/elasticsearch > elastic_original_values.yaml
+```
+Elastic search values
+
+```yaml
+replicas: 3
+# Потребляет много ресурсов потому что написана на Java
+# Для Production опреативки нужно больше 4-8 Gb и "-Xmx1g -Xms1g" соответственно тоже больше 
+# Эти значения должны быть в два раза меньше чем мы устанавливаем для оперативной памяти resources
+esJavaOpts: "-Xmx1g -Xms1g"
+
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "2Gi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+# Меняем под наши нужды storage
+volumeClaimTemplate:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+
+# Enabling this will publicly expose your Elasticsearch instance.
+# Only enable this if you have security enabled on your cluster
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/auth-type: basic
+    # Секрет должен быть создан заранее с именем admin-basic-auth'
+    nginx.ingress.kubernetes.io/auth-secret: admin-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required'
+    kubernetes.io/tls-acme: "true"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+
+  # kubernetes.io/ingress.class: nginx
+  # kubernetes.io/tls-acme: "true"
+  className: "nginx"
+  pathtype: ImplementationSpecific
+  hosts:
+    - host: elasticsearch.kubernetes.basov.world
+      paths:
+        - path: /
+  tls:
+    - secretName: elasticsearch-general-tls
+      hosts:
+        - elasticsearch.kubernetes.basov.world
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+```
+
+Установка: В продакшене рекомендуется выносить `elasticsearch` на отдельные ноды (отдельные сервера), если логов много то перед `elasticsearch` еще ставят `Kafka` а потом с помощью `fluentd` или `logstash` перекладывают их в `elasticsearch` если он не успевает обрабатывать логи.
+
+```bash
+helm upgrade -i elasticsearch elastic/elasticsearch -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/elastic_changed_values.yaml -n logging --create-namespace
+```
+Дождитесь пока все поды запустятся и станут Ready:
+```bash
+kubectl get pods --namespace=logging -w
+```
+
+Посмотреть Login и Password можно в Secrets:
+elasticsearch-master-credentials
+
+#### Установка версии elasticsearch 7.10.2
+
+Последняя opensource версия, не ставиться если просто указать версию для kubernetes 1.25 и выше из за ошибки 
+
+```bash
+no matches for kind "PodDisruptionBudget" in version "policy/v1beta1" elasticsearch
+```
+
+PodDisruptionBudget должен быть версии "policy/v1"
+
+Установка 7.10.2: 
+
+```bash
+helm pull elastic/elasticsearch --version 7.10.2 --untar
+# Меняем версию PodDisruptionBudget на "policy/v1" в /templates/poddisruptionbudget.yaml
+# Ставим
+helm upgrade -i elasticsearch -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/elastic_changed_values.yaml -n logging --create-namespace ./elastichelmchart7.10.2/
+```
+
+#### Установка версии elasticsearch 7.17.3
+
+```bash
+helm show values elastic/elasticsearch --version 7.17.3 > elastic_original_values7.17.3.yaml
+helm upgrade -i elasticsearch elastic/elasticsearch --version 7.17.3 -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/elastic_changed_values.yaml -n logging --create-namespace
+```
+
+#### Установка FluentBit
+
+```bash
+helm repo add fluent https://fluent.github.io/helm-charts
+helm repo update
+helm search repo fluent
+helm show values fluent/fluent-bit > fluent_bit_original_values.yaml
+```
+
+```yaml
+# kind -- DaemonSet or Deployment
+# Поды распространяются по всем нодам в кластере
+kind: DaemonSet
+
+# С помощью аннотаций можем поставить cборщики на мониторинг в prometheus
+# Для продакшена нужно поставить
+service:
+  type: ClusterIP
+  port: 2020
+  loadBalancerClass:
+  loadBalancerSourceRanges: []
+  labels: {}
+  # nodePort: 30020
+  # clusterIP: 172.16.10.1
+  annotations: {}
+#   prometheus.io/path: "/api/v1/metrics/prometheus"
+#   prometheus.io/port: "2020"
+#   prometheus.io/scrape: "true"
+
+# Настройка алертов
+prometheusRule:
+  enabled: false
+#   namespace: ""
+#   additionalLabels: {}
+#   rules:
+#   - alert: NoOutputBytesProcessed
+#     expr: rate(fluentbit_output_proc_bytes_total[5m]) == 0
+#     annotations:
+#       message: |
+#         Fluent Bit instance {{ $labels.instance }}'s output plugin {{ $labels.name }} has not processed any
+#         bytes for at least 15 minutes.
+#       summary: No Output Bytes Processed
+#     for: 15m
+#     labels:
+#       severity: critical
+# 
+dashboards:
+  enabled: false
+  labelKey: grafana_dashboard
+  labelValue: 1
+  annotations: {}
+  namespace: ""
+
+# Прописываем tolerations чтобы fluent-bit ставился на все ноды (в том числе ноды с taints, master ноды)
+tolerations:
+  - operator: Exists
+    effest: NoSchedule
+
+# Обязательно нужно прописать ресурсы в production
+resources: {}
+#   limits:
+#     cpu: 100m
+#     memory: 128Mi
+#   requests:
+#     cpu: 100m
+#     memory: 128Mi
+
+## https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/classic-mode/configuration-file
+# Основная конфигурация FluentBit
+config:
+
+```
+
+```bash
+helm upgrade -i fluent-bit fluent/fluent-bit -n logging --create-namespace -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/fluent_bit_changed_values.yaml
+```
+
+#### Установка FluentBit 0.20.0
+
+```bash
+helm show values fluent/fluent-bit --version 0.20.0 > fluent_bit_changed_values0.20.0.yaml
+helm upgrade -i fluent-bit fluent/fluent-bit --version 0.20.0 -n logging --create-namespace -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/fluent_bit_changed_values.yaml
+```
+
+Ошибки в подах fluent-bit
+```bash
+[2023/11/12 17:50:56] [error] [output:es:es.1] HTTP status=429 URI=/_bulk, response:
+{"error":{"root_cause":[{"type":"es_rejected_execution_exception","reason":"rejected execution of coordinating operation [coordinating_and_primary_bytes=52703926, replica_bytes=0, all_bytes=52703926, coordinating_operation_bytes=2267981, max_coordinating_and_primary_bytes=53687091]"}],"type":"es_rejected_execution_exception","reason":"rejected execution of coordinating operation [coordinating_and_primary_bytes=52703926, replica_bytes=0, all_bytes=52703926, coordinating_operation_bytes=2267981, max_coordinating_and_primary_bytes=53687091]"},"status":429}
+```
+Это сообщение об ошибке означает, что запрос к `Elasticsearch` был отклонен с кодом состояния `HTTP 429` `(Too Many Requests)`. `Elasticsearch` возвращает этот код состояния, когда сервер считает, что он превысил ограничения на количество запросов или ресурсов, и он временно не может принимать больше запросов.
+
+Причина отказа в выполнении `(es_rejected_execution_exception)` указывает на то, что `Elasticsearch` отклонил запрос из-за ограничений по ресурсам. Судя по сообщению, это может быть связано с тем, что достигнут лимит ресурсов, который `Elasticsearch` может использовать для выполнения операций координации.
+```bash
+helm upgrade -i kibana elastic/kibana -n logging --create-namespace -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/kibana_changed_values.yaml
+```
+
+#### Установка Kibana
+
+```bash
+helm repo add elastic https://helm.elastic.co
+helm repo update
+helm search repo elastic
+helm show values elastic/kibana > kibana_original_values.yaml
+```
+
+Посмотреть Login и Password можно в Secrets:
+elasticsearch-master-credentials
+
+Заходим в Kibana
+Management - Stack Management 
+
+#### Установка Kibana 7.17.3
+
+```bash
+# Create Secret for basic auth
+htpasswd -c auth admin
+kubectl create secret generic admin-basic-auth --from-file=auth -n logging
+```
+
+```bash
+helm show values elastic/kibana --version 7.17.3 > kibana_original_values7.17.3.yaml
+helm upgrade -i kibana elastic/kibana --version 7.17.3 -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/kibana_changed_values.yaml -n logging --create-namespace
+```
+
+
+#### Настройка kibana
+
+Home - Management - Stack Management  
+Kibana - Index Patterns  
+Create Index Patterns
+
+Мы видим что в elasticsearch есть два индекса:  
+```
+logstash-2023.11.12
+node-2023.11.12
+```
+Эти индексы ротируются каждый день. Т.е. каждый день создается новый индекс. Поэтому логи за несколько дней будут лежать в нескольких индексах и нам нужно объяснить kibana что все индексы node-* это все индексы в которых хранятся наши node логи.
+
+
+#### Сбор логов с node  
+В Create index pattern  
+Name 
+```text
+node-*
+```
+Timestamp field
+```text
+@timestamp
+```
+
+Create Index Pattern
+
+Все индекс создался.
+
+Analytics - Discover  
+Видим логи, все логи от компонента kubelet
+
+#### Сбор логов с наших приложений в кластере
+В Create index pattern  
+Name 
+```text
+logstash-*
+```
+Timestamp field
+```text
+@timestamp
+```
+
+Create Index Pattern
+Все индекс создался.
+
+Analytics - Discover 
+
+После того как изменим префмкс в конфиге fluent-bit
+```yaml
+  outputs: |
+    [OUTPUT]
+        Name es
+        Match kube.*
+        Logstash_Prefix kube
+```
+Нам нужно поменять наш index pattern
+index pattern logstash-* в kibana на kube-*
+
+Home - Management - Stack Management  
+Kibana - Index Patterns  
+logstash-* - этот паттерн удаляем
+
+В Create index pattern  
+Name 
+```text
+kube-*
+```
+Timestamp field
+```text
+@timestamp
+```
+
+Create Index Pattern
+Все индекс создался.
+
+Analytics - Discover Проверяем что логи появились
+
+
+####

@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: prom-ingress.rules
+  annotations:
+    meta.helm.sh/release-name: prom-operator
+    meta.helm.sh/release-namespace: prometheus-oper
+  labels:
+    app.kubernetes.io/instance: prom-operator
+    release: prom-operator
+spec:
+  groups:
+  - name: Ingress
+    rules:
+    - expr: rate(nginx_ingress_controller_requests[5m])
+      record: nginx_ingress_controller_requests_per_second

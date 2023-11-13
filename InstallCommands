@@ -400,5 +400,20 @@ kubectl create secret generic admin-basic-auth --from-file=auth -n prometheus-op
 kubectl get secrets -n prometheus-operator admin-basic-auth
 
 helm upgrade --install prom-operator prometheus-community/kube-prometheus-stack --namespace prometheus-oper --create-namespace -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_operator/changed_values.yaml
+
+# Resize Persistent Volume Claim (PVC) Prometheus Operator
+# https://prometheus-operator.dev/docs/operator/storage/#resizing-volumes
+# PVC должны быть связаны иначе будет ошибка spec is immutable after creation except resources.requests for bound claims
+for p in $(kubectl get pvc -l operator.prometheus.io/name=prom-operator-kube-prometh-prometheus -n prometheus-oper -o jsonpath='{range .items[*]}{.metadata.name} {end}'); do \
+  kubectl -n prometheus-oper patch pvc/${p} --patch '{"spec": {"resources": {"requests": {"storage":"5Gi"}}}}'; \
+done
+
+
+# Установка ElasticSearch
+helm repo add elastic https://helm.elastic.co
+helm repo update
+helm search repo elastic
+helm show values elastic/elasticsearch > elastic_original_values.yaml
+helm upgrade -i elasticsearch elastic/elasticsearch -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/elastic_changed_values.yaml -n logging --create-namespace
 ```
 

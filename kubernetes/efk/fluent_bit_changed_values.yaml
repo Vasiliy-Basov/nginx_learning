@@ -1,0 +1,115 @@
+
+# Прописываем tolerations чтобы fluent-bit ставился на все ноды (в том числе ноды с taints, master ноды)
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+
+# С какой частотой отправлять логи
+flush: 10
+## https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/classic-mode/configuration-file
+
+config:
+  # Daemon Off - Работает внутри контейнера поэтому работает foreground а не background режим
+  # Flush - как часто fluent-bit будет сбрасывать логи 1 - это раз в секунду 
+  # Log_Level - уровень логов info error warning debug
+  # Parsers_File  файлы в которых лежат наши Parsers
+  # HTTP_Server On - включаем http сервер чтобы поды fluent-bit могли отдавать свою статистику ,свои метрики
+  service: |
+    [SERVICE]
+        Daemon Off
+        Flush {{ .Values.flush }}
+        Log_Level {{ .Values.logLevel }}
+        Parsers_File parsers.conf
+        Parsers_File custom_parsers.conf
+        HTTP_Server On
+        HTTP_Listen 0.0.0.0
+        HTTP_Port {{ .Values.metricsPort }}
+        Health_Check On
+
+  # Path /var/log/containers/*.log Собирает логи из этой директории (логи всех контейнеров на всех хостах кластера kubernetes)
+  # multiline.parser docker, cri - отправляем логи в parser который объявляется ниже в конфигурации
+  # Tag kube.* - все логи получают тег kube.* 
+  # Mem_Buf_Limit 5MB - лимит на чтение файла с логами (максимум за раз в память)
+  # Skip_Long_Lines On - Если он не может загрузить из за нехватки памяти то такой лог будет обрезан (будет исключена длинная строчка)
+
+  # Name systemd - логи из systemd
+  # Tag host.* - все логи получают тег host.*
+  # Systemd_Filter _SYSTEMD_UNIT=kubelet.service - собираем логи только компонента kubelet
+  # Добавим еще компонент docker Systemd_Filter _SYSTEMD_UNIT=docker.service
+  # Read_From_Tail On - логи будет читать с того места когда он подключился а не сначала
+  inputs: |
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*.log
+        multiline.parser docker, cri
+        Tag kube.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+
+    [INPUT]
+        Name systemd
+        Tag host.*
+        Systemd_Filter _SYSTEMD_UNIT=kubelet.service
+        Systemd_Filter _SYSTEMD_UNIT=docker.service
+        Read_From_Tail On
+
+  ## https://docs.fluentbit.io/manual/pipeline/filters
+  # Все что тегировано kube.* мы будем пропускать через встроенный фильтр kubernetes 
+  # который обогащает эти логи метаинформацией (node name, pod name, namespace, label, annotation) взятой fluent-bit из кластера kubernetes
+  # Merge_Log On - Если внутри поля log нашего лога содержится json то fluent-bit попытается его разпарсить на отдельные поля поэтому писать логи в json хорошая идея
+  # Keep_Log Off - Изначальное поле log при распарсивании лога можно удалить из лога
+  # параметры которые говорят с помощью аннотаций в подах как поступать с их логами:
+  # K8S-Logging.Parser On
+  # В pod можем указать название парсера для парсинга логов например:
+  # annotations:
+  #  fluentbit.io/parser: apache
+  # K8S-Logging.Exclude On
+  # В pod можем указать что логи этого пода собирать не нужно например:
+  # annotations:
+  #   fluentbit.io/exclude: "true"
+  filters: |
+    [FILTER]
+        Name kubernetes
+        Match kube.*
+        Merge_Log On
+        Keep_Log Off
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude On
+
+  # Match kube.* - все логи с тегом kube.* отправляем в:
+  # Host elasticsearch-master
+  # Logstash_Format On - В формате logstash
+  # Добавим параметр Logstash_Prefix kube чтобы вместо префикса Logstash (defoult префикс logstash-*) у нас был более понятный префикс kube-*
+
+  # Logstash_Prefix node - добавляется префикс node для логов с nodes
+  # Retry_Limit False - будут пытаться отправить логи без какого либо лимита (т.е. если elasticsearch недоступен все равно будут осуществляться попытки отправить логи бесконечно)
+  # Добавим поле (не обязательно) Replace_Dots On - если в подах fluent-bit у нас есть ошибки из за разных форматов аннотаций в подах то это поля заменяет все точки в аннотациях на подчеркивания 
+  ## https://docs.fluentbit.io/manual/pipeline/outputs
+  outputs: |
+    [OUTPUT]
+        Name es
+        Match kube.*
+        Host elasticsearch-master
+        Logstash_Format On
+        Logstash_Prefix kube
+        Retry_Limit False
+        Replace_Dots On
+
+    [OUTPUT]
+        Name es
+        Match host.*
+        Host elasticsearch-master
+        Logstash_Format On
+        Logstash_Prefix node
+        Retry_Limit False
+
+  # Сюда можно добавлять собственные parsers и с помощью аннотаций в подах подключать к конкретным подам
+  # Тут для примера объявлен парсер для докер логов который парсит логи из докера (json логи контейнера докера)
+  ## https://docs.fluentbit.io/manual/pipeline/parsers
+  customParsers: |
+    [PARSER]
+        Name docker_no_time
+        Format json
+        Time_Keep Off
+        Time_Key time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
