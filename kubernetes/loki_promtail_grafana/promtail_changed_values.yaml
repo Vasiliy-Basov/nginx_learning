@@ -1,0 +1,17 @@
+# -- Section for crafting Promtails config file. The only directly relevant value is `config.file`
+# which is a templated string that references the other values and snippets below this key.
+# @default -- See `values.yaml`
+config:
+  # Прописываем адрес endpoint gateway loki с namespace куда мы будем посылать логи
+  clients:
+    - url: http://loki:3100/loki/api/v1/push
+  # -- Configures where Promtail will save it's positions file, to resume reading after restarts.
+  # Must be referenced in `config.file` to configure `positions`
+
+# -- Tolerations for pods. By default, pods will be scheduled on master/control-plane nodes.
+# Любые Taints которые стоят на нодах и которые запрещают туда распространять поды мы будем игнорировать чтобы собирать оттуда логи
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  - operator: Exists
+    effect: NoSchedule

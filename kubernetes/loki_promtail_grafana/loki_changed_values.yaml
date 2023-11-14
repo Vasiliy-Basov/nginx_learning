@@ -1,0 +1,68 @@
+# Не получилось заставить работать в Scalable Mode https://grafana.com/docs/loki/latest/setup/install/helm/install-scalable/ c Grafana
+# Configuration for the write pod(s)
+# write:
+#   replicas: 1
+#   persistence:
+#     # -- Enable volume claims in pod spec
+#     volumeClaimsEnabled: true
+#     # -- Parameters used for the `data` volume when volumeClaimEnabled if false
+#     dataVolumeParameters:
+#       emptyDir: {}
+#     # -- Enable StatefulSetAutoDeletePVC feature
+#     enableStatefulSetAutoDeletePVC: false
+#     # -- Size of persistent disk
+#     size: 5Gi
+#     # -- Storage class to be used.
+#     # If defined, storageClassName: <storageClass>.
+#     # If set to "-", storageClassName: "", which disables dynamic provisioning.
+#     # If empty or set to null, no storageClassName spec is
+#     # set, choosing the default provisioner (gp2 on AWS, standard on GKE, AWS, and OpenStack).
+#     storageClass: null
+#     # -- Selector for persistent disk
+#     selector: null
+# # Configuration for t
+
+# # Configuration for the read pod(s)
+# read:
+#   # -- Number of replicas for the read
+#   replicas: 1
+
+# # Configuration for the backend pod(s)
+# backend:
+#   replicas: 1
+
+#   persistence:
+#     # -- Enable StatefulSetAutoDeletePVC feature
+#     enableStatefulSetAutoDeletePVC: true
+#     # -- Enable persistent disk
+#     enabled: true
+#     # -- Size of persistent disk
+#     size: 5Gi
+#     # -- Storage class to be used.
+#     # If defined, storageClassName: <storageClass>.
+#     # If set to "-", storageClassName: "", which disables dynamic provisioning.
+#     # If empty or set to null, no storageClassName spec is
+#     # set, choosing the default provisioner (gp2 on AWS, standard on GKE, AWS, and OpenStack).
+#     storageClass: null
+#     # -- Selector for persistent disk
+#     selector: null
+
+# Запускаем в Monolith Mode. 
+loki:
+  commonConfig:
+    replication_factor: 1
+  auth_enabled: false
+  storage:
+    type: 'filesystem'
+singleBinary:
+  replicas: 1
+test:
+  enabled: false
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+    lokiCanary:
+      enabled: false
+

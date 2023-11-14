@@ -456,7 +456,7 @@ debug, info, warn, error.
 ```
 ```
 --log.format
-Defult: logfmt
+Default: logfmt
 Данный ключ устанавливает формат логов. Доступные форматы: logfmt и json.
 ```
 ```
@@ -4260,4 +4260,87 @@ Create Index Pattern
 Analytics - Discover Проверяем что логи появились
 
 
-####
+### Работа в kibana
+
+Analytics - Discover - Search - используем KQL - kibana query language 
+
+Примеры:  
+1. Найти все логи подов kibana
+```KQL
+kubernetes.pod_name: kibana*
+```
+2. Выражения можно объединять. Есть ключевые слова and, or, not их можно объединять с помощью скобок.
+```KQL
+kubernetes.pod_name: kibana* and res.statusCode: 200
+```
+
+3. 
+```KQL
+kubernetes.pod_name: kibana* and res.statusCode: < 500
+```
+
+Если мы хотим видеть только определенные поля то слева в секции `Available fields` можем выбрать эти поля и добавлять их в `Selected fields` с помощью плюсика.
+
+
+#### Dashboards
+Analytics - Dashboards
+Логи должны быть отпарсены
+
+Create new dashboard - create visualization 
+search field вводим : req.method.keyword перетаскиваем на визуализацию, меняем отображение на stacked (over time) здесь мы можем посмотреть наши запросы по типам за какое то определенное время.
+
+
+## Loki Promtail Grafana
+
+Локи лучше использовать на ненагруженных проектах
+
+### Установка Loki
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+helm show values grafana/loki > loki_original_values.yaml
+
+helm upgrade -i loki grafana/loki -f  /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/loki_promtail_grafana/loki_changed_values.yaml --create-namespace -n logging
+```
+
+### Установка Promtail
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+helm show values grafana/promtail > promtail_original_values.yaml
+helm upgrade -i promtail grafana/promtail -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/loki_promtail_grafana/promtail_changed_values.yaml --create-namespace -n logging
+```
+
+### Настраиваем Grafana
+
+Home - Datasource - Add new data source - Loki
+logging это namespace
+URL: http://loki.logging:3100
+
+save and test
+
+Home - Explore - code
+Сделаем запрос:  
+Получем все логи подов ingress-nginx  
+```text
+{namespace="ingress-nginx"}
+```
+
+Все логи содержащие слово POST  
+```text
+{namespace="ingress-nginx"} |= "POST"
+```
+
+Можем использовать regexp с ~  
+Запрос где слово POST есть в теле сообщения  
+```text
+{namespace="ingress-nginx"} |~ "POST .*"
+```
+
+## Мониторинг что мониторить?
+
+1. Бизнес метрики
+ 
+2. 
