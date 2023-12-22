@@ -92,6 +92,8 @@ helm repo update
 
 https://docs.gitlab.com/charts/installation/command-line-options.html # - опции
 
+# !!! Если нужно собирать docker images: runner д.б. запущен с опцией --privileged
+
 helm upgrade --install gitlab gitlab/gitlab --timeout 600s \
   --set global.hosts.domain=gitlab.basov.world \
   --set global.hosts.externalIP=35.192.162.100 \
