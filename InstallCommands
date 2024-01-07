@@ -41,6 +41,7 @@ AAAAC3NzaC1lZDI1NTE5AAAAICe9m3kKmvdKVSCdDYs4CL/QGlwgtwWSYuGCYIrqRErs\ appuser \
 
 # Pritunl VPN Install
 # https://docs.pritunl.com/docs/installation
+# Не забыть нажать Start Server после настройки!
 
 # Узнать какая сейчас default zone
 gcloud config get-value compute/zone
@@ -184,8 +185,8 @@ helm upgrade --install kibana elastic/kibana \
 kubectl -n kibana get events --sort-by='{.lastTimestamp}'
 
 # Установка nginx ingress controller
-helm upgrade --install ingress-nginx ingress-nginx --repo https://kubernetes.github.io/ingress-nginx --namespace ingress-nginx --create-namespace --set controller.service.loadBalancerIP=35.192.172.98 --set controller.metrics.enabled=true
-# Другой вариант:
+
+# Другой вариант:helm upgrade --install ingress-nginx ingress-nginx --repo https://kubernetes.github.io/ingress-nginx --namespace ingress-nginx --create-namespace --set controller.service.loadBalancerIP=35.192.172.98 --set controller.metrics.enabled=true --set controller.priorityClassName="system-cluster-critical"
 helm upgrade --install nginx-ingress oci://ghcr.io/nginxinc/charts/nginx-ingress --version 0.18.0 --namespace nginx-ingress --create-namespace --set controller.service.loadBalancerIP=34.121.46.38
 
 # Если ошибка 403 то скачиваем на удаленном сервере. Error: failed to authorize: failed to fetch anonymous token: unexpected status from GET request to https://ghcr.io/token?scope=repository%3Anginxinc%2Fcharts%2Fnginx-ingress%3Apull&scope=repository%3Auser%2Fimage%3Apull&service=ghcr.io: 403 Forbidden
