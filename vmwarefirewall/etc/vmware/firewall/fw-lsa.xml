@@ -1,0 +1,25 @@
+<!-- Firewall configuration information for fw LSA -->
+<ConfigRoot>
+  <service id='0000'>
+      <id>LSA UI</id>
+      <rule id='0000'>
+          <direction>inbound</direction>
+          <protocol>tcp</protocol>
+          <porttype>dst</porttype>
+          <port>2463</port>
+      </rule>
+      <enabled>false</enabled>
+      <required>false</required>
+  </service>
+  <service id='0001'>
+    <id>LSA Mail</id>
+    <rule id='0000'>
+        <direction>outbound</direction>
+        <protocol>tcp</protocol>
+        <porttype>dst</porttype>
+        <port>25</port>
+    </rule>
+    <enabled>false</enabled>
+    <required>false</required>
+  </service>
+</ConfigRoot>
