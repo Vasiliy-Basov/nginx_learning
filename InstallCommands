@@ -257,7 +257,7 @@ kubectl get pv
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 helm search repo prometheus-community
-# Download Chart Localy
+# Download Chart Localy Скачиваем чарт локально
 helm pull prometheus-community/prometheus --untar
 # Устанавливаем чарт Prometheus из локальной папки prometheus
 helm upgrade --install --wait prometheus --create-namespace --namespace monitoring ./prometheus/
