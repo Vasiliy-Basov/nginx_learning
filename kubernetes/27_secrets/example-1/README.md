@@ -31,3 +31,5 @@ kubectl get secret db-user-pass-from-file -o jsonpath='{.data}'
 
 ```bash
 kubectl get secret db-user-pass-from-literal -o jsonpath='{.data.password}' | base64 --decode
+```
+
