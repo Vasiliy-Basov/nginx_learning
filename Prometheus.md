@@ -1,5 +1,143 @@
 # Prometheus
 
+## Установка
+
+Лучше ставить в docker режиме
+https://prometheus.io/docs/prometheus/latest/installation/
+
+Ссылка на конфиг
+https://github.com/prometheus/prometheus/blob/main/documentation/examples/prometheus.yml
+
+### Из документации
+```bash
+# Create persistent volume for your data
+docker volume create prometheus-data
+# Start Prometheus container
+docker run \
+    -p 9090:9090 \
+    -v /path/to/prometheus.yml:/etc/prometheus/prometheus.yml \
+    -v prometheus-data:/prometheus \
+    prom/prometheus
+```
+
+Используем этот метод если хотим чтобы docker сам создал volume, путь к базе данным тогда можно посмотреть командой 
+
+```bash
+docker volume inspect prometheus-data
+```
+
+
+### Создаем каталог для базы сами и запускаем от конкретного пользователя
+
+```bash
+sudo mkdir -p /media/baggurd/ssd_samsung_465gb/prometheus/data
+sudo chown -R baggurd:baggurd /media/baggurd/ssd_samsung_465gb/prometheus/data
+sudo chmod 755 /media/baggurd/ssd_samsung_465gb/prometheus/data
+
+docker run -d --name prometheus \
+    -p 9090:9090 \
+    -v /media/baggurd/ssd_samsung_465gb/prometheus/data:/prometheus \
+    -v /media/baggurd/ssd_samsung_465gb/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
+    --user $(id -u baggurd):$(id -g baggurd) \
+    prom/prometheus
+```
+
+### Так же через docker-compose
+
+```bash
+cd /media/baggurd/ssd_samsung_465gb/prometheus
+nano docker-compose.yml
+```
+```yaml
+version: '3.8'  # Версия Docker Compose
+
+services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"  # Проброс порта
+    volumes:
+      - /media/baggurd/ssd_samsung_465gb/prometheus/data:/prometheus  # Монтирование директории данных
+      - /media/baggurd/ssd_samsung_465gb/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  # Монтирование файла конфигурации
+    user: "${UID}:${GID}"  # Установка пользователя и группы для контейнера
+    # Эти пути и команды выполняются внутри контейнера например:
+    #command:
+    #  - '--storage.tsdb.retention.size=10GB
+    restart: always
+```
+Создаем файл с переменными рядом с docker-compose.yml
+```bash
+cd /media/baggurd/ssd_samsung_465gb/prometheus
+touch .env
+# Добавляем UID и GID текущего пользователя
+echo "UID=$(id -u)" >> .env
+echo "GID=$(id -g)" >> .env
+```
+
+```bash
+# Запускаем
+docker-compose up -d
+```
+
+```bash
+# Посмотреть из под какого пользователя работает контейнер
+docker inspect prometheus --format='{{.Config.User}}'
+```
+
+Делаем службу
+```bash
+sudo nano /etc/systemd/system/prometheus.service
+```
+```service
+[Unit]
+Description=Prometheus
+Wants=network-online.target
+After=network-online.target
+PartOf=docker.service
+After=docker.service
+
+[Service]
+User=baggurd
+Group=baggurd
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/media/baggurd/ssd_samsung_465gb/prometheus
+EnvironmentFile=/media/baggurd/ssd_samsung_465gb/prometheus/.env
+ExecStart=/usr/local/bin/docker-compose up -d --remove-orphans
+ExecStop=/usr/local/bin/docker-compose down
+
+[Install]
+WantedBy=multi-user.target
+```
+```bash
+sudo systemctl daemon-reload
+sudo systemctl start prometheus.service
+sudo systemctl enable prometheus.service
+sudo systemctl status prometheus.service
+docker ps
+docker inspect prometheus --format='{{.Config.User}}'
+```
+
+### Основные параметры запуска
+
+--config.file="prometheus.yml" - какой конфигурационный файл использовать;
+--web.listen-address="0.0.0.0:9090" - адрес, который будет слушать встроенный веб-сервер;
+--web.enable-admin-api - включить или отключить административный API через веб-интерфейс;
+--web.console.templates="consoles" - путь к директории с шаблонами html;
+--web.console.libraries="console_libraries" - путь к директории с библиотеками для шаблонов;
+--web.page-title - заголовок веб-страницы (title);
+--web.cors.origin=".*" - настройки CORS для веб-интерфейса;
+--storage.tsdb.path="data/" - путь для хранения time series database;
+--storage.tsdb.retention.time - время хранения метрик по умолчанию 15 дней, все, что старше, будет удаляться;
+--storage.tsdb.retention.size - размер TSDB, после которого Prometheus начнет удалять самые старые данные;
+--query.max-concurrency - максимальное одновременное число запросов к Prometheus через PromQL;
+--query.timeout=2m - максимальное время выполнения одного запроса;
+--enable-feature - флаг для включения различных функций, описанных здесь;
+--log.level - уровень логирования.
+
+
+
 ## Install node_exporter
 
 Инсталлируем с помощью ansible
