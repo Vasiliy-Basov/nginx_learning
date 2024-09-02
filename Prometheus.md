@@ -150,10 +150,30 @@ ansible-playbook node_exporter.yaml --private-key /home/baggurd/.ssh/appuser_ed2
 В gcp нужно открыть порт 9100 делаем это через terraform
 ../Projects/nginx_learning/terraform
 
+или не GCP и с помощью ssh
+
+inventory.ini
+```
+[local]
+localhost ansible_connection=local
+```
+```bash
+ansible-playbook node_exporter.yaml --ask-become-pass
+```
+
 Проверка что все работает:
 http://nginx.basov.world:9100/metrics
+http://localhost:9100/metrics
+
+
 
 ## Ключи запуска Node Exporter
+Эти переменные вносим здесь
+/home/baggurd/Dropbox/Projects/nginx_learning/ansible/roles/node_exporter/vars/main.yaml
+/home/baggurd/Dropbox/Projects/nginx_learning/ansible/roles/node_exporter/templates/node_exporter
+
+./node_exporter --help - посмотреть параметры
+
 Далее приведен список наиболее востребованных ключей Node Exporter
 ```
 --log.level

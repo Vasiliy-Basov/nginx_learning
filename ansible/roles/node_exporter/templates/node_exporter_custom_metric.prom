@@ -1,2 +1,2 @@
-#TYPE slurm_demo_metric counter
-slurm_demo_metric 100
+#TYPE test_metric counter
+test_metric 100
