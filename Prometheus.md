@@ -3,12 +3,13 @@
 ## Установка
 
 Лучше ставить в docker режиме
-https://prometheus.io/docs/prometheus/latest/installation/
+<https://prometheus.io/docs/prometheus/latest/installation/>
 
 Ссылка на конфиг
-https://github.com/prometheus/prometheus/blob/main/documentation/examples/prometheus.yml
+<https://github.com/prometheus/prometheus/blob/main/documentation/examples/prometheus.yml>
 
 ### Из документации
+
 ```bash
 # Create persistent volume for your data
 docker volume create prometheus-data
@@ -25,7 +26,6 @@ docker run \
 ```bash
 docker volume inspect prometheus-data
 ```
-
 
 ### Создаем каталог для базы сами и запускаем от конкретного пользователя
 
@@ -48,6 +48,7 @@ docker run -d --name prometheus \
 cd /media/baggurd/ssd_samsung_465gb/prometheus
 nano docker-compose.yml
 ```
+
 ```yaml
 version: '3.8'  # Версия Docker Compose
 
@@ -66,7 +67,9 @@ services:
     #  - '--storage.tsdb.retention.size=10GB
     restart: always
 ```
+
 Создаем файл с переменными рядом с docker-compose.yml
+
 ```bash
 cd /media/baggurd/ssd_samsung_465gb/prometheus
 touch .env
@@ -90,9 +93,11 @@ docker inspect prometheus --format='{{.Config.User}}'
 ```
 
 Делаем службу
+
 ```bash
 sudo nano /etc/systemd/system/prometheus.service
 ```
+
 ```service
 [Unit]
 Description=Prometheus
@@ -114,6 +119,7 @@ ExecStop=/usr/local/bin/docker-compose down
 [Install]
 WantedBy=multi-user.target
 ```
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl start prometheus.service
