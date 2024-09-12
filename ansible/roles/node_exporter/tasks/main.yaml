@@ -1,20 +1,78 @@
-- name: download node exporter
+- name: Ensure /etc/node-exporter directory exists
+  ansible.builtin.file:
+    path: /etc/node-exporter
+    state: directory
+    mode: '0755'
+
+- name: Generate private key
+  community.crypto.openssl_privatekey:
+    path: /etc/node-exporter/node_exporter.key
+    type: RSA
+    size: 2048
+
+- name: Debug variables
+  debug:
+    msg:
+      - "inventory_hostname: {{ inventory_hostname }}"
+      - "ansible_fqdn: {{ ansible_fqdn }}"
+      - "ansible_default_ipv4.address: {{ ansible_default_ipv4.address }}"
+
+- name: Generate OpenSSL CSR
+  community.crypto.openssl_csr:
+    path: /etc/node-exporter/node_exporter.csr
+    privatekey_path: /etc/node-exporter/node_exporter.key
+    common_name: "{{ inventory_hostname }}"
+    country_name: RU
+    state_or_province_name: SPB
+    locality_name: SPB
+    organization_name: SPB
+    subject_alt_name:
+      - "DNS:{{ inventory_hostname }}"
+      - "DNS:{{ ansible_fqdn }}"
+      - "IP:{{ ansible_default_ipv4.address }}"
+
+- name: Generate self-signed OpenSSL certificate
+  community.crypto.x509_certificate:
+    path: /etc/node-exporter/node_exporter.crt
+    privatekey_path: /etc/node-exporter/node_exporter.key
+    csr_path: /etc/node-exporter/node_exporter.csr
+    provider: selfsigned
+
+- name: Set permissions for TLS files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '0600'
+  loop:
+    - /etc/node-exporter/node_exporter.key
+    - /etc/node-exporter/node_exporter.crt
+
+- name: Generate Basic Auth password file
+  ansible.builtin.htpasswd:
+    path: /etc/node-exporter/node_exporter.htpasswd
+    name: "{{ node_exporter_basic_auth_username }}"
+    password: "{{ node_exporter_basic_auth_password }}"
+    mode: '0600'
+
+- name: Download node exporter
   get_url:
     url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
     dest: /tmp
-- name: unarchive node exporter
+
+- name: Unarchive node exporter
   unarchive:
-    remote_src: yes
+    remote_src: true
     src: /tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
     dest: /tmp
-- name: move node exporter to /usr/local/bin
+
+- name: Move node exporter to /usr/local/bin
   copy:
     src: /tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter
     dest: /usr/local/bin/node_exporter
-    remote_src: yes
+    remote_src: true
     owner: root
     group: root
     mode: 0755
+
 - name: Create /tmp/node_exporter/ directory
   ansible.builtin.file:
     path: /tmp/node_exporter
@@ -22,40 +80,53 @@
     owner: root
     group: root
     mode: '0755'
-- name: create file node_exporter_custom_metric.prom with metrics
+
+- name: Create file node_exporter_custom_metric.prom with metrics
   template:
     src: node_exporter_custom_metric.prom
     dest: /tmp/node_exporter/node_exporter_custom_metric.prom
     owner: root
     group: root
-    mode: 0755
+    mode: "0755"
   notify: Restart node_exporter
-- name: create file with $option template
+
+- name: Create file with $OPTIONS template
   template:
     src: node_exporter
     dest: /etc/default/node_exporter
     owner: root
     group: root
-    mode: 0755
+    mode: "0755"
   notify: Restart node_exporter
-- name: install unit file to systemd
+
+- name: Install unit file to systemd
   template:
     src: node_exporter.service.j2
     dest: /etc/systemd/system/node_exporter.service
     owner: root
     group: root
     mode: 0600
-- name: configure systemd to use service
+
+- name: Configure systemd to use service
   systemd:
     daemon_reload: yes
     enabled: yes
     state: started
     name: node_exporter.service
-- name: Ensure Nodeexporter is running.
+
+- name: Ensure Node Exporter is running.
   uri:
     url: "http://127.0.0.1:9100"
     status_code: 200
+    validate_certs: no
+    url_username: "{{ node_exporter_basic_auth_username }}"
+    url_password: "{{ node_exporter_basic_auth_password }}"
   register: result
   until: result.status == 200
   retries: 60
   delay: 1
+
+- name: Restart node_exporter
+  ansible.builtin.systemd:
+    name: node_exporter
+    state: restarted

@@ -1,2 +1,5 @@
 telemetry_path: "--web.telemetry-path=/metrics"
 metrics_file: "--collector.textfile.directory=/tmp/node_exporter"
+node_exporter_basic_auth_username: abc
+node_exporter_basic_auth_password: abc
+node_exporter_version: 1.8.2
