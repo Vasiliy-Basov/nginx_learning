@@ -11,7 +11,7 @@
     size: 2048
 
 - name: Debug variables
-  debug:
+  ansible.builtin.debug:
     msg:
       - "inventory_hostname: {{ inventory_hostname }}"
       - "ansible_fqdn: {{ ansible_fqdn }}"
@@ -21,7 +21,7 @@
   community.crypto.openssl_csr:
     path: /etc/node-exporter/node_exporter.csr
     privatekey_path: /etc/node-exporter/node_exporter.key
-    common_name: "{{ inventory_hostname }}"
+    common_name: "{{ ansible_fqdn }}"
     country_name: RU
     state_or_province_name: SPB
     locality_name: SPB
@@ -41,37 +41,42 @@
 - name: Set permissions for TLS files
   ansible.builtin.file:
     path: "{{ item }}"
-    mode: '0600'
+    mode: "0600"
   loop:
     - /etc/node-exporter/node_exporter.key
     - /etc/node-exporter/node_exporter.crt
 
-- name: Generate Basic Auth password file
-  ansible.builtin.htpasswd:
-    path: /etc/node-exporter/node_exporter.htpasswd
-    name: "{{ node_exporter_basic_auth_username }}"
-    password: "{{ node_exporter_basic_auth_password }}"
+- name: Create Node Exporter web config
+  ansible.builtin.template:
+    src: web-config.yml.j2
+    dest: /etc/node-exporter/web-config.yml
+    owner: root
+    group: root
     mode: '0600'
+  notify: Restart node_exporter
 
 - name: Download node exporter
-  get_url:
+  ansible.builtin.get_url:
     url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
     dest: /tmp
+    owner: root
+    group: root
+    mode: "0755"
 
 - name: Unarchive node exporter
-  unarchive:
+  ansible.builtin.unarchive:
     remote_src: true
     src: /tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
     dest: /tmp
 
 - name: Move node exporter to /usr/local/bin
-  copy:
+  ansible.builtin.copy:
     src: /tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter
     dest: /usr/local/bin/node_exporter
     remote_src: true
     owner: root
     group: root
-    mode: 0755
+    mode: "0755"
 
 - name: Create /tmp/node_exporter/ directory
   ansible.builtin.file:
@@ -82,7 +87,7 @@
     mode: '0755'
 
 - name: Create file node_exporter_custom_metric.prom with metrics
-  template:
+  ansible.builtin.template:
     src: node_exporter_custom_metric.prom
     dest: /tmp/node_exporter/node_exporter_custom_metric.prom
     owner: root
@@ -91,7 +96,7 @@
   notify: Restart node_exporter
 
 - name: Create file with $OPTIONS template
-  template:
+  ansible.builtin.template:
     src: node_exporter
     dest: /etc/default/node_exporter
     owner: root
@@ -100,25 +105,25 @@
   notify: Restart node_exporter
 
 - name: Install unit file to systemd
-  template:
+  ansible.builtin.template:
     src: node_exporter.service.j2
     dest: /etc/systemd/system/node_exporter.service
     owner: root
     group: root
-    mode: 0600
+    mode: "0600"
 
 - name: Configure systemd to use service
-  systemd:
-    daemon_reload: yes
-    enabled: yes
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+    enabled: true
     state: started
     name: node_exporter.service
 
 - name: Ensure Node Exporter is running.
-  uri:
+  ansible.builtin.uri:
     url: "http://127.0.0.1:9100"
     status_code: 200
-    validate_certs: no
+    validate_certs: false
     url_username: "{{ node_exporter_basic_auth_username }}"
     url_password: "{{ node_exporter_basic_auth_password }}"
   register: result

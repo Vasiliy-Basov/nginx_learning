@@ -3,4 +3,4 @@ tls_server_config:
   key_file: /etc/node-exporter/node_exporter.key
 
 basic_auth_users:
-  {{ node_exporter_basic_auth_username }}: {{ node_exporter_basic_auth_password | password_hash('bcrypt') }}
+  {{ node_exporter_basic_auth_username }}: {{ node_exporter_basic_auth_password }}
