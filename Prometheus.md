@@ -1694,7 +1694,8 @@ cd /media/baggurd/ssd_samsung_465gb/grafana
 nano docker-compose.yml
 ```
 
-Add the following content to the docker-compose.yml file:
+Add the following content to the docker-compose.yml file:  
+Если хотим установить плагины то кидаем их в папку /grafana/plugins распакованные
 
 ```yaml
 version: '3.8'
@@ -1706,12 +1707,19 @@ services:
     restart: unless-stopped
     environment:
      - GF_SECURITY_ADMIN_PASSWORD=P@ssw0rd456
+     # Настройки для почтовых alerts
+     - GF_SMTP_ENABLED=true
+     - GF_SMTP_HOST=smtp.yandex.ru:465
+     - GF_SMTP_USER=baggurdprom@yandex.ru
+     - GF_SMTP_PASSWORD=сложныйпароль
+     - GF_SMTP_FROM_ADDRESS=baggurdprom@yandex.ru
     ports:
      - '3000:3000'
     volumes:
      - '/media/baggurd/ssd_samsung_465gb/grafana/data:/var/lib/grafana'
      - '/media/baggurd/ssd_samsung_465gb/grafana/log:/var/log/grafana'
      - '/media/baggurd/ssd_samsung_465gb/grafana/config/grafana.ini:/etc/grafana/grafana.ini'
+     - '/media/baggurd/ssd_samsung_465gb/grafana/plugins:/var/lib/grafana/plugins'
     user: "${UID}:${GID}"
 ```
 ```bash
@@ -1772,6 +1780,12 @@ docker ps
 docker inspect grafana --format='{{.Config.User}}'
 # You can now access Grafana by opening a web browser and navigating to http://your_server_ip:3000
 ```
+
+## Grafana plugins
+https://grafana.com/grafana/plugins/
+
+Grafana Image Renderer  
+Плагин для преобразования графиков в картинки, можно использовать при отправке alerts. Для этого нужно будет в alerting channel в нужном канале уведомления поставить галочку Include Image.
 
 ## Настройка Grafana
 
