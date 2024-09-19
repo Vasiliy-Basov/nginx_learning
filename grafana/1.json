@@ -1,0 +1,75 @@
+{
+    "current": {},
+    "datasource": {
+      "type": "prometheus",
+      "uid": "${DS__VICTORIAMETRICS-PROD-ALL}"
+    },
+    "definition": "label_values(node_uname_info{vendor=~\"$vendor\",account=~\"$account\",group=~\"$group\",name=~\"$name\",instance=~\"$instance\"}, name)",
+    "hide": 2,
+    "includeAll": false,
+    "label": "展示使用的名称",
+    "multi": false,
+    "name": "show_name",
+    "options": [],
+    "query": {
+      "query": "label_values(node_uname_info{vendor=~\"$vendor\",account=~\"$account\",group=~\"$group\",name=~\"$name\",instance=~\"$instance\"}, name)",
+      "refId": "StandardVariableQuery"
+    },
+    "refresh": 2,
+    "regex": "",
+    "skipUrlSync": false,
+    "sort": 5,
+    "tagValuesQuery": "",
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+  },
+  {
+    "allFormat": "glob",
+    "current": {},
+    "datasource": {
+      "type": "prometheus",
+      "uid": "${DS__VICTORIAMETRICS-PROD-ALL}"
+    },
+    "definition": "label_values(node_uname_info{vendor=~\"$vendor\",account=~\"$account\",group=~\"$group\",name=~\"$name\"},iid)",
+    "hide": 2,
+    "includeAll": false,
+    "label": "实例ID",
+    "multi": false,
+    "multiFormat": "regex values",
+    "name": "iid",
+    "options": [],
+    "query": {
+      "query": "label_values(node_uname_info{vendor=~\"$vendor\",account=~\"$account\",group=~\"$group\",name=~\"$name\"},iid)",
+      "refId": "StandardVariableQuery"
+    },
+    "refresh": 2,
+    "regex": "",
+    "skipUrlSync": false,
+    "sort": 5,
+    "tagValuesQuery": "",
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+  },
+  {
+    "current": {
+      "selected": false,
+      "text": "",
+      "value": ""
+    },
+    "description": "总览表名称字段支持筛选，可以使用正则，如：.*aa.*bb.*",
+    "hide": 0,
+    "label": "查询",
+    "name": "sname",
+    "options": [
+      {
+        "selected": true,
+        "text": "",
+        "value": ""
+      }
+    ],
+    "query": "",
+    "skipUrlSync": false,
+    "type": "textbox"
+  }
