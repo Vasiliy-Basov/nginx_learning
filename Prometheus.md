@@ -176,6 +176,7 @@ docker inspect prometheus --format='{{.Config.User}}'
 
 ```bash
 ansible-playbook node_exporter.yaml --private-key /home/baggurd/.ssh/appuser_ed25519
+ --limit server1 - для выполнения на конкретном сервере.
 ```
 
 В gcp нужно открыть порт 9100 делаем это через terraform
@@ -4771,3 +4772,15 @@ https://github.com/prometheus-operator/kube-prometheus/blob/main/manifests/nodeE
 6. Grafana позволяет на одном графике сочетать данные из нескольких источников. Например данные мониторинга и системы логирования. Таким образом можно связывать например графики ошибок в запросах из мониторинга и сообщения логов, которые эту ошибку описывают.
 
 7. Не имеет смысла собирать все возможные метрики и все возможные сообщения логов в максимальном уровне логирования. Эти данные чаще всего не используются, но при этом очень быстро приводят к разрастанию систем мониторинга и логирования, что может привести к их неработоспособности. Выделите набор нужных метрик, и оптимальный ровень логирования. Обсуждайте с разработкой целесообразност добавления новых метрик.
+
+#Errors
+Ошибки при scrape kube proxy в prometheus
+kube proxy prometheus operator Get connect: connection refuse
+
+Решение: поменять config kube proxy и перезапустить pod-ы
+
+```bash
+kubectl edit cm/kube-proxy -n kube-system
+metricsBindAddress: 0.0.0.0:10249
+kubectl delete pod -l k8s-app=kube-proxy -n kube-system
+```

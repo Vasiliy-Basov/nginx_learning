@@ -11,3 +11,5 @@ ansible/roles/buluma.phpmyadmin
 terraform/pritunl-vpn/
 ansible\roles\nginxinc.nginx
 ansible/roles/nginxinc.nginx/
+ansible/vault.yml
+ansible/vault_pass.txt
