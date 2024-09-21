@@ -13,3 +13,4 @@ ansible\roles\nginxinc.nginx
 ansible/roles/nginxinc.nginx/
 ansible/vault.yml
 ansible/vault_pass.txt
+ansible/client_golang/
