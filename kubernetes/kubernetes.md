@@ -283,11 +283,37 @@ Deployment откатывается к нужным ревизиям через 
 
 ## Service
 Что вроде коммутатора
+![](/pics/service.png)
+![](/pics/service-sch.png)
+
+Kube-proxy - проксирует запросы от кластера до определенного сервиса
+
+### NodePort
+![](/pics/nodeport.png)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: short-app-port
+spec:
+  type: NodePort
+  ports:
+  # Порт для других подов которые хотят получить доступ к этому поду
+  - port: 3000
+    # Порт внутри контейнера куда мы прокидываем NodePort
+    targetPort: 80
+    # Порт который нужно будет вводить клиенту
+    NodePort: 31200
+  # Привязываем сервис к подам у которых есть эти labels:
+  selector: 
+    components: frontend
+```
 
 ### ClusterIp
 Ip назначается внутри кластера только для доступа к подам изнутри
 
-```bash
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -343,7 +369,7 @@ kubernetes      ClusterIP   10.75.240.1    <none>        443/TCP        17d
 ```
 
 Можно указать endpoint-ы вручную тогда сервис может быть без селектора
-```bash
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
