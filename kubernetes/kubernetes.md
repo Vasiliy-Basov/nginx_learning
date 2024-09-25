@@ -185,7 +185,7 @@ spec:
 ```
 
 ## Deployment
-Оркестрирует ReplicaSet
+Оркеструет ReplicaSet
 т.е. если мы создадим новую версию нашего приложения он создаст новый ReplicaSet который создаст новые реплики pods а старый ReplicaSet будет иметь 0 pods что удалит старые версии приложения.
 
 Выглядит файл аналогично ReplicaSet
@@ -254,6 +254,7 @@ spec:
 <span style="color:red"> ! Чтобы заставить изменять наше приложение секция template должна быть изменена <span>
 
 Кроме RollingUpdate есть еще стратегия Recreate
+
 ### Recreate
 Сначала удаляются все поды и только после этого создаются новые (будет Downtime) Приложение будет не доступно
 ```yaml
@@ -281,34 +282,31 @@ kubectl rollout undo deployment kuber --to-revision=1
 
 Deployment откатывается к нужным ревизиям через старые ReplicaSet которые он сохраняет, поэтому не стоит их удалять.
 
+Если хотим поменять image у какого-то deployment:
+
+```bash
+kubectl set image deployment.apps/short-app-deployment short-app=antonlarichev/short-app:latest
+``` 
+
+Если хотим заново выкатить наш deployment в случае например если контейнер изменился а тег не изменился и нам нужно заново стянуть контейнер не меняя при этом конфигурацию deployment.
+Должна быть опция  
+
+```yaml
+  imagePullPolicy: Always  
+```
+
+В этом случае невозможно откатиться на предыдущую версию, поэтому не рекомендуется так делать  
+
+```bash
+kubectl rollout restart deployment short-app-deployment -n test
+```
+
 ## Service
 Что вроде коммутатора
 ![](/pics/service.png)
 ![](/pics/service-sch.png)
 
 Kube-proxy - проксирует запросы от кластера до определенного сервиса
-
-### NodePort
-![](/pics/nodeport.png)
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: short-app-port
-spec:
-  type: NodePort
-  ports:
-  # Порт для других подов которые хотят получить доступ к этому поду
-  - port: 3000
-    # Порт внутри контейнера куда мы прокидываем NodePort
-    targetPort: 80
-    # Порт который нужно будет вводить клиенту
-    NodePort: 31200
-  # Привязываем сервис к подам у которых есть эти labels:
-  selector: 
-    components: frontend
-```
 
 ### ClusterIp
 Ip назначается внутри кластера только для доступа к подам изнутри
@@ -352,7 +350,7 @@ curl http://kuber-service.default.svc.cluster.local
 curl http://kuber-service
 ```
 
-## Endpoints
+#### Endpoints
 Конечные точки (ip адреса подов) для каждого из наших сервисов
 Список ip адресов наших подов
 
@@ -389,10 +387,10 @@ subsets:
     ports:
     - port: 80
 ```
-### ClusterIp без iP адреса подключение ко всем подам одновременно
+#### ClusterIp без iP адреса подключение ко всем подам одновременно
 
 Если нам нужно подключиться ко всем подам одновременно.
-Например приложению нужно ролучить ip адреса всех подов для подключения.
+Например приложению нужно получить ip адреса всех подов для подключения.
 Для этого создаем сервис без назначения ему ip адреса
 
 ```yaml
@@ -447,7 +445,7 @@ Name:   kuber-headless-service.default.svc.cluster.local
 Address: 10.72.2.18
 ```
 
-## Service ExternalName
+### Service ExternalName
 Если мы хотим обращаться к какому то внешнему сервису например к базе данных которая находится во вне по внутреннему dns имени сервиса
 
 По сути это аналог cname в dns
@@ -467,7 +465,28 @@ spec:
 ```
 Могут быть проблемы если мы обращаемся по таким протоколам как http и https
 
-## NodePort
+### NodePort
+
+![](/pics/nodeport.png)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: short-app-port
+spec:
+  type: NodePort
+  ports:
+  # Порт для других подов которые хотят получить доступ к этому поду
+  - port: 3000
+    # Порт внутри контейнера куда мы прокидываем NodePort (containerPort)
+    targetPort: 80
+    # Порт который нужно будет вводить клиенту
+    NodePort: 31200 # port-range: 30000-32767
+  # Привязываем сервис к подам у которых есть эти labels:
+  selector: 
+    components: frontend
+```
 
 ```yaml
 apiVersion: v1
@@ -499,7 +518,7 @@ curl http://kuber-service-nodeport
 http://34.121.113.29:30080/
 Нужно открыть порт в Firewall
 
-## LoadBalancer
+### LoadBalancer
 Работает только на cloud providers (Amazon, GCP, Azure ...)
 Это улучшенная версия NodePort
 
@@ -528,12 +547,15 @@ http://34.171.9.146/
 
 Если есть ноды без подов то запрос может зависнуть
 
-## Ingress
+### Ingress
 Работает на 7 уровне OSI
-Чтобы ингресс работал в кластере должен быть запущен контроллер ингресс
+Чтобы ingress работал в кластере должен быть запущен контроллер ingress
 есть много разных котроллеров, можно посмотреть все на официальном сайте.
+
+![](/pics/architecture.png)
+
 ```bash
-kubectl get inrgess -A
+kubectl get ingress -A
 ```
 
 ```yaml
@@ -541,9 +563,12 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: main-ingress
+  # аннотации это конфигурация nginx
   # annotations:
     # rewrite правило, перенаправляет все запросы на корневой путь /
     # nginx.ingress.kubernetes.io/rewrite-target: /  
+    # Автоматически добавляет базовый URL к ссылкам в ответах от приложения
+    # nginx.ingress.kubernetes.io/add-base-url: "true"
 spec:
   rules:
   # Все запросы которые приходят на этот хост будут перенаправляться на этот сервис
@@ -826,6 +851,61 @@ https://app.k8slens.dev/subscribe-personal
 
 ```bash
 sudo dpkg -i Lens-2023.9.290703-latest.amd64.deb
+```
+
+## Volumes
+
+Volume - Выделенная область внутри pod  
+Persistent Volume - Отдельный объект вне pod  
+Persistent Volume Claim - Запрос на выделение Volume для pod  
+
+### EmptyDir
+
+```yaml
+# EmptyDir удаляется при удалении пода.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuber
+  labels:
+    app: kuber
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: http-server
+  template:
+    metadata:
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: kuber-app-1
+        image: bakavets/kuber
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        # Путь внутри контейнера
+        - mountPath: /cache-1
+          name: cache-volume
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        # Путь внутри контейнера (Если внутри контейнера в эта папка существует то файлы из нее заменяться на файлы cache-volume)
+        - mountPath: /usr/share/nginx/html/data
+        # - mountPath: /cache-2
+          name: cache-volume
+          # Если мы создадим файлы в /usr/share/nginx/html/data то в /cache-1 другого контейнера файлы появятся в /cache-1/data так работает subPath
+          subPath: data
+      # Указываем тип и имя volume
+      volumes:
+      - name: cache-volume
+        # Выделить подам дисковое пространство на ноде где запускаются поды, 
+        # если мы подключим этот диск двум подам то данные в двух подах будут одинаковые
+        # На ноде emptyDir хранится по пути /var/lib/kubelet/pods/<uid_пода>/volumes/kubernetes.io~empty-dir/<имя_volume>/
+        emptyDir: {}
 ```
 
 ## Secrets

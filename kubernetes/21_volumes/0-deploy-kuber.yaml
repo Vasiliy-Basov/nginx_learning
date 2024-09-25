@@ -1,0 +1,45 @@
+
+# EmptyDir удаляется при удалении пода.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuber
+  labels:
+    app: kuber
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: http-server
+  template:
+    metadata:
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: kuber-app-1
+        image: bakavets/kuber
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        # Путь внутри контейнера
+        - mountPath: /cache-1
+          name: cache-volume
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        # Путь внутри контейнера (Если внутри контейнера в эта папка существует то файлы из нее заменяться на файлы cache-volume)
+        - mountPath: /usr/share/nginx/html/data
+        # - mountPath: /cache-2
+          name: cache-volume
+          # Если мы создадим файлы в /usr/share/nginx/html/data то в /cache-1 другого контейнера файлы появятся в /cache-1/data так работает subPath
+          subPath: data
+      # Указываем тип и имя volume
+      volumes:
+      - name: cache-volume
+        # Выделить подам дисковое пространство на ноде где запускаются поды, 
+        # если мы подключим этот диск двум подам то данные в двух подах будут одинаковые
+        # На ноде emptyDir хранится по пути /var/lib/kubelet/pods/<uid_пода>/volumes/kubernetes.io~empty-dir/<имя_volume>/
+        emptyDir: {}
