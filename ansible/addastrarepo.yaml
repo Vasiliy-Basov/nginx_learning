@@ -1,9 +1,9 @@
 ---
-- name: Config Node_Exporter
+- name: Add Repo To Astra Linux
   hosts: all
   remote_user: master
   become: true
   become_user: root
 
   roles:
-    - node_exporter
+    - addastrarepo

@@ -1,4 +1,6 @@
 OPTIONS="--web.listen-address=:9100 \
          --collector.textfile.directory=/tmp/node_exporter \
          --web.telemetry-path=/metrics \
-         --web.config.file=/etc/node-exporter/web-config.yml"
+         --web.config.file=/etc/node-exporter/web-config.yml \
+         --collector.systemd \
+         --collector.processes"

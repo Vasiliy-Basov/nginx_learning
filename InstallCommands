@@ -420,3 +420,6 @@ helm show values elastic/elasticsearch > elastic_original_values.yaml
 helm upgrade -i elasticsearch elastic/elasticsearch -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/efk/elastic_changed_values.yaml -n logging --create-namespace
 ```
 
+Node Exporter install
+ansible-playbook node_exporter.yaml --private-key /home/appuser/.ssh/id_ed25519 --limit backup_servers --ask-become-p
+ass

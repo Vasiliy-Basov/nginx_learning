@@ -1,9 +1,10 @@
 ---
-- name: Config Node_Exporter
+- name: Preconfigure AstraLinux
   hosts: all
   remote_user: master
   become: true
   become_user: root
 
   roles:
-    - node_exporter
+    - addastrarepo
+    - astraprereq

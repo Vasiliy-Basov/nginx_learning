@@ -14,3 +14,5 @@ ansible/roles/nginxinc.nginx/
 ansible/vault.yml
 ansible/vault_pass.txt
 ansible/client_golang/
+ansible/group_vars/
+ansible/roles/addastrarepo/

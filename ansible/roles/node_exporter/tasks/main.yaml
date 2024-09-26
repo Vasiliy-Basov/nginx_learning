@@ -10,6 +10,13 @@
     type: RSA
     size: 2048
 
+#  эта опция указывает, что команда должна быть выполнена только в том случае, если файл /etc/node-exporter/node_exporter.key не существует
+# - name: Generate private key with OpenSSL
+#   ansible.builtin.command:
+#     cmd: openssl genpkey -algorithm RSA -out /etc/node-exporter/node_exporter.key -pkeyopt rsa_keygen_bits:2048
+#   args:
+#     creates: /etc/node-exporter/node_exporter.key
+
 - name: Debug variables
   ansible.builtin.debug:
     msg:
@@ -127,16 +134,23 @@
     state: started
     name: node_exporter.service
 
+- name: Restart Node Exporter service
+  ansible.builtin.systemd:
+    name: node_exporter.service
+    state: restarted
+    enabled: true
+
 - name: Ensure Node Exporter is running.
   ansible.builtin.uri:
-    url: "http://127.0.0.1:9100"
+    url: "https://127.0.0.1:9100/metrics"
     status_code: 200
     validate_certs: false
-    url_username: "{{ node_exporter_basic_auth_username }}"
-    url_password: "{{ node_exporter_basic_auth_password }}"
-  register: result
-  until: result.status == 200
-  retries: 60
+    user: "{{ node_exporter_basic_auth_username }}"
+    password: "{{ auth_password }}"
+    force_basic_auth: true
+  register: _result
+  until: _result.status == 200
+  retries: 5
   delay: 1
 
 - name: Restart node_exporter
