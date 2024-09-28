@@ -908,6 +908,191 @@ spec:
         emptyDir: {}
 ```
 
+```yaml
+# Данные которые генерируются в контейнере debian будут попадать в контейнер nginx в режиме readonly, данные хранятся в оперативной памяти.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: two-containers
+spec:
+  restartPolicy: Never
+  containers:
+    - name: nginx-container
+      image: nginx
+      volumeMounts:
+      - name: shared-data
+      # Путь внутри контейнера
+        mountPath: /usr/share/nginx/html
+        # container сможет только читать конфиг
+        readOnly: true
+    - name: debian-container
+      image: debian
+      volumeMounts:
+      - name: shared-data
+        # Путь внутри контейнера
+        mountPath: /pod-data
+      command: ["/bin/sh"]
+      args: ["-c", "while true; do echo Hello from the debian container date: $(date)> /pod-data/index.html; sleep 1; done"]
+  volumes:
+  - name: shared-data
+    emptyDir: # {}
+      # Монтирование tmpfs в оперативную память вместо диска
+       medium: Memory
+```
+
+### hostPath
+
+Не рекомендуется использовать из за проблем с безопасностью  
+Данные сохраняются на host-е если pod удаляется данные сохраняются.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pd
+spec:
+  containers:
+  - image: bakavets/kuber
+    name: test-container
+    volumeMounts:
+    - mountPath: /test-pd
+      name: test-volume
+  volumes:
+  - name: test-volume
+    hostPath:
+      # Это путь к директории на host-е
+      path: /data
+      # this field is optional. поле, которое указывает, что по пути /data на узле 
+      # должна быть директория. Если директории не существует, она не будет автоматически создана, и под не запустится
+      type: Directory
+```
+
+### PersistentVolume
+Часть хранилища в кластере которое было подготовлено администратором кластера либо динамически предоставлено storage class
+
+```yaml
+# https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-v1/
+# Это объект кластерного уровня и не имеет namespace
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: aws-pv-kuber
+  labels:
+    type: aws-pv-kuber
+spec:
+  capacity:
+    # Объем хранилища
+    storage: 3Gi
+  accessModes: # https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes
+    # Может быть смонтирован для чтения и записи только одной ноды
+    - ReadWriteOnce
+  # Что произойдет с хранилищем после того как оно будет использовано и освобождено и будет удален pod и PersistentVolumeClaim  
+  # Recycle - означает что volume будет очищен и готов к повторному использованию
+  persistentVolumeReclaimPolicy: Retain # https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-v1/#PersistentVolumeSpec # https://kubernetes.io/docs/concepts/storage/persistent-volumes/#recycle
+  storageClassName: "" # Empty value means that this volume does not belong to any StorageClass. https://kubernetes.io/docs/concepts/storage/persistent-volumes/#class-1
+  # Плагин который вшит в kubernetes, поддерживает только ReadWriteOnce. Рекомендуется использовать CSI драйвера для нужного провайдера а не встроенные плагины.
+  # Этот PersistentVolume должен быть создан заранее в AWS  
+  awsElasticBlockStore:
+    volumeID: "vol-02a71cfd076eac916"
+    fsType: ext4
+```
+
+### PersistentVolumeClaim
+Заявка на определенное хранилище
+
+```yaml
+# https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-claim-v1/
+# Заявка на хранилище PersistentVolume
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: aws-pvc-kuber
+spec:
+  storageClassName: "" # Empty string must be explicitly set otherwise default StorageClass will be set
+  # Эти параметры должны полностью удовлетворять созданному нами PV что бы заявка была выполнена
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+```
+
+### StorageClass
+
+Нужен чтобы создавать динамические PV
+
+Создаем StorageClass
+
+```yaml
+# https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/storage-class-v1/
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: custom-gp2
+# Это поставщик нашего плагина или csi Driver Name
+provisioner: kubernetes.io/aws-ebs # https://kubernetes.io/docs/concepts/storage/storage-classes/#provisioner
+# Параметры диска относящиеся к Amazon
+parameters:
+  type: gp2
+# Оставлять или удалять (Delete) PV после удаления PVC
+reclaimPolicy: Retain # https://kubernetes.io/docs/concepts/storage/storage-classes/#reclaim-policy
+# Возможность расширять диск
+allowVolumeExpansion: true
+```
+
+Создаем PVC
+
+В Этом случае PV будет создан динамически с помощью SC  
+
+```yaml
+# https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-claim-v1/
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: aws-pvc-kuber-1
+spec:
+  # Указываем наш StorageClass если не укажем то выберется Default SC если хотим чтобы StorageClass вообще не выбирался то указываем пустую строчку "".
+  storageClassName: "custom-gp2"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi
+```
+
+Создаем Deployment для нашего PVC
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuber-1
+  labels:
+    app: kuber
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: http-server
+  template:
+    metadata:
+      labels:
+        app: http-server
+    spec:
+      containers:
+      - name: kuber-app
+        image: bakavets/kuber
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - mountPath: /cache
+          name: cache-volume
+      volumes:
+      - name: cache-volume
+        persistentVolumeClaim:
+          claimName: aws-pvc-kuber-1
+```
+
 ## Secrets
 
 ### Секреты из файла

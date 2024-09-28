@@ -1,0 +1,29 @@
+# Данные которые генерируются в контейнере debian будут попадать в контейнер nginx в режиме readonly
+apiVersion: v1
+kind: Pod
+metadata:
+  name: two-containers
+spec:
+  restartPolicy: Never
+  containers:
+    - name: nginx-container
+      image: nginx
+      volumeMounts:
+      - name: shared-data
+      # Путь внутри контейнера
+        mountPath: /usr/share/nginx/html
+        # container сможет только читать конфиг
+        readOnly: true
+    - name: debian-container
+      image: debian
+      volumeMounts:
+      - name: shared-data
+        # Путь внутри контейнера
+        mountPath: /pod-data
+      command: ["/bin/sh"]
+      args: ["-c", "while true; do echo Hello from the debian container date: $(date)> /pod-data/index.html; sleep 1; done"]
+  volumes:
+  - name: shared-data
+    emptyDir: # {}
+      # Монтирование tmpfs в оперативную память вместо диска
+       medium: Memory

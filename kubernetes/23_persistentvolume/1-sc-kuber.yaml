@@ -1,0 +1,14 @@
+# https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/storage-class-v1/
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: custom-gp2
+# Это поставщик нашего плагина или csi Driver Name
+provisioner: kubernetes.io/aws-ebs # https://kubernetes.io/docs/concepts/storage/storage-classes/#provisioner
+# Параметры диска относящиеся к Amazon
+parameters:
+  type: gp2
+# Оставлять или удалять (Delete) PV после удаления PVC
+reclaimPolicy: Retain # https://kubernetes.io/docs/concepts/storage/storage-classes/#reclaim-policy
+# Возможность расширять диск
+allowVolumeExpansion: true
