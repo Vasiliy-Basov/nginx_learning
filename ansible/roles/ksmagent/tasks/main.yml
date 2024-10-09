@@ -1,0 +1,47 @@
+---
+- name: Download the agent bundle
+  ansible.builtin.get_url:
+    url: "http://10.21.45.116/agent/Astra-Linux/3.0.5/as7/agent-3.0.5.1-230718-1206.fts.as7.bundle"
+    dest: "/tmp/agent-3.0.5.1-230718-1206.fts.as7.bundle"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Make the agent bundle executable
+  file:
+    path: "/tmp/agent-3.0.5.1-230718-1206.fts.as7.bundle"
+    mode: '0755'
+    state: file
+
+- name: Update apt cache
+  become: true
+  apt:
+    update_cache: yes
+    cache_valid_time: 86400 #One day
+
+- name: Install required package libdw1
+  apt:
+    name: libdw1
+    state: present
+
+- name: Check if solo-agent.service exists and is running
+  systemd:
+    name: solo-agent.service
+  register: solo_agent_status
+  failed_when: false  # Позволяет продолжить выполнение, даже если служба не найдена
+
+- name: Display solo-agent.service ActiveState status
+  debug:
+    msg: "solo-agent.service is {{ solo_agent_status.status.ActiveState | default('not found') }}"
+
+- name: Install the agent if solo-agent.service is not running
+  command: "./agent-3.0.5.1-230718-1206.fts.as7.bundle 172.18.197.220 --noupdate"
+  args:
+    chdir: "/tmp"
+  when: solo_agent_status.status.ActiveState is undefined or solo_agent_status.status.ActiveState != 'active'
+  register: agent_install
+
+- name: Restart the solo-agent service
+  systemd:
+    name: solo-agent.service
+    state: restarted

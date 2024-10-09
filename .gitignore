@@ -16,3 +16,4 @@ ansible/vault_pass.txt
 ansible/client_golang/
 ansible/group_vars/
 ansible/roles/addastrarepo/
+ansible/inventory.ini

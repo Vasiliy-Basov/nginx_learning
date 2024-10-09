@@ -897,7 +897,7 @@ spec:
         - mountPath: /usr/share/nginx/html/data
         # - mountPath: /cache-2
           name: cache-volume
-          # Если мы создадим файлы в /usr/share/nginx/html/data то в /cache-1 другого контейнера файлы появятся в /cache-1/data так работает subPath
+          # В этом случае, если в вашем persistent volume есть директория "data", только она будет смонтирована в /cache1 в контейнере
           subPath: data
       # Указываем тип и имя volume
       volumes:
@@ -991,7 +991,7 @@ stringData:
 k apply -f secret-stringData.yaml
 ```
 
-## Использование секретов внутри наших контейнеров
+### Использование секретов внутри наших контейнеров
 /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/27_secrets/example-1
 
 ```yaml
@@ -1027,7 +1027,7 @@ k apply -f secret-stringData.yaml
                 key: password
 ```
 
-## Использование секретов внутри наших контейнеров используя volume а не env (более безопасный способ)
+### Использование секретов внутри наших контейнеров используя volume а не env (более безопасный способ)
 /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/27_secrets/example-2
 
 Секреты попадают внутрь контейнера уже декодированном виде

@@ -1,0 +1,10 @@
+---
+- name: Ksmagent install
+  hosts: all
+  remote_user: master
+  become: true
+  become_user: root
+
+  roles:
+    - addastrarepo
+    - ksmagent

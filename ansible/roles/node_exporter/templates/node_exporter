@@ -3,4 +3,5 @@ OPTIONS="--web.listen-address=:9100 \
          --web.telemetry-path=/metrics \
          --web.config.file=/etc/node-exporter/web-config.yml \
          --collector.systemd \
-         --collector.processes"
+         --collector.processes \
+         --collector.netdev.address-info"
