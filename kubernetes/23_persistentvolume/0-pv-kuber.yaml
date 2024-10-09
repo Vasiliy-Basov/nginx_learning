@@ -1,0 +1,24 @@
+# https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-v1/
+# Это объект кластерного уровня и не имеет namespace
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: aws-pv-kuber
+  labels:
+    type: aws-pv-kuber
+spec:
+  capacity:
+    # Объем хранилища
+    storage: 3Gi
+  accessModes: # https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes
+    # Может быть смонтирован для чтения и записи только одной ноды
+    - ReadWriteOnce
+  # Что произойдет с хранилищем после того как оно будет использовано и освобождено и будет удален pod и PersistentVolumeClaim  
+  # Recycle - означает что volume будет очищен и готов к повторному использованию
+  persistentVolumeReclaimPolicy: Retain # https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-v1/#PersistentVolumeSpec # https://kubernetes.io/docs/concepts/storage/persistent-volumes/#recycle
+  storageClassName: "" # Empty value means that this volume does not belong to any StorageClass. https://kubernetes.io/docs/concepts/storage/persistent-volumes/#class-1
+  # Плагин который вшит в kubernetes, поддерживает только ReadWriteOnce. Рекомендуется использовать CSI драйвера для нужного провайдера а не встроенные плагины.
+  # Этот PersistentVolume должен быть создан заранее в AWS  
+  awsElasticBlockStore:
+    volumeID: "vol-02a71cfd076eac916"
+    fsType: ext4
