@@ -750,6 +750,7 @@ Kubernetes позволяет переопределять не только CMD
 ```
 
 Переопределение ENTRYPOINT аргументов:
+
 ```yaml
     spec:
       containers:
@@ -768,7 +769,7 @@ Kubernetes позволяет переопределять не только CMD
 
 ## Настройка HTTPS для web-app в Kubernetes. NGINX Ingress и cert manager. Let's Encrypt
 
-https://www.youtube.com/watch?v=8ULmDxTzAVQ&t=1012s
+<https://www.youtube.com/watch?v=8ULmDxTzAVQ&t=1012s>
 
 1) Покупаем домен
 2) Добавляем в `cloud DNS - DNS Zone`
@@ -780,11 +781,13 @@ TTL(seconds) 300
 4) Ставим `ingress controller`
 5) Ставим `ingress.yaml` +  `deployment` + `service`
 6) Ставим `Cert Manager`
+
 ```bash
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
 helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.12.4 --set installCRDs=true --set ingressShim.defaultIssuerName=letsencrypt-prod --set ingressShim.defaultIssuerKind=ClusterIssuer --set ingressShim.defaultIssuerGroup=cert-manager.io
 ```
+
 ```bash
 # Эти настройки нужны чтобы при указании аннотации kubernetes.io/tls-acme: "true" cert manager создавал сертификат для всех таких ingress:
 --set ingressShim.defaultIssuerName=letsencrypt-prod --set ingressShim.defaultIssuerKind=ClusterIssuer --set ingressShim.defaultIssuerGroup=cert-manager.io
@@ -816,27 +819,34 @@ spec:
         ingress:
           ingressClassName: nginx
 ```
-И применить его 
+
+И применить его
+
 ```bash
 kubectl apply -f letsencrypt-prod.yaml
 ```
+
 7) Создаем объект Issuer или ClusterIssuer (Custom объект kubernetes, по умолчанию его нет), Issuer действует в пределах namespace. ClusterIssuer во всем кластере.
-https://cert-manager.io/docs/configuration/acme/
+<https://cert-manager.io/docs/configuration/acme/>
 
 Когда мы создадим новый ACME Issuer, Cert manager сгенерирует private key который будет использоваться чтобы идентифицировать нас в ACME server (Let's Encrypt)
 
-https://cert-manager.io/docs/tutorials/acme/nginx-ingress/
+<https://cert-manager.io/docs/tutorials/acme/nginx-ingress/>
 
 /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/16_https/staging_ClusterIssuer.yaml
+
 ```bash
 k apply -f staging_ClusterIssuer.yaml
 ```
+
 Посмотреть что мы создали
+
 ```bash
 k get clusterissuers.cert-manager.io
 ```
 
 Проверка сертификатов
+
 ```bash
 kubectl get certificate -A
 kubectl describe certificate -n monitoring prometheus-server-tls
@@ -846,8 +856,9 @@ kubectl get clusterissuer
 ```
 
 ## Lens
+
 Регистрируемся скачиваем устанавливаем:
-https://app.k8slens.dev/subscribe-personal
+<https://app.k8slens.dev/subscribe-personal>
 
 ```bash
 sudo dpkg -i Lens-2023.9.290703-latest.amd64.deb
@@ -968,7 +979,10 @@ spec:
 ```
 
 ### PersistentVolume
+
 Часть хранилища в кластере которое было подготовлено администратором кластера либо динамически предоставлено storage class
+
+Нельзя использовать настройку Replica:2 для Persistent Volume (Для баз данных) иначе будет неконсистентость.
 
 ```yaml
 # https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-v1/
@@ -998,6 +1012,7 @@ spec:
 ```
 
 ### PersistentVolumeClaim
+
 Заявка на определенное хранилище
 
 ```yaml
@@ -1276,9 +1291,11 @@ dockercfg - более устаревший формат
 Чтобы позволить kubelet сделать pull docker контейнера из приватного репозитория необходимо создать секрет
 
 Сначала мы должны создать Access Token для доступа в приватный репозиторий
+
 ```
 Docker Hub - Account Settings - Security - New Access Token
 ```
+
 Вставляем токен и создаем секрет:
 
 ```bash
@@ -1288,6 +1305,7 @@ kubectl create secret docker-registry secret-docker-registry \
   --docker-password=Сюда_вставляем_наш_токен \
   --docker-server=https://index.docker.io/v1/
 ```
+
 Ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 
 Чтобы использовать секрет прописываем следующие в deployment
@@ -1305,6 +1323,7 @@ Ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private
 ```
 
 ### kubernetes.io/basic-auth
+
 Хранит учетные данные для базовой аутентификации
 Должен содержать один из следующих ключей
 username или password или оба
@@ -1322,8 +1341,10 @@ stringData:
 ```
 
 ### kubernetes.io/ssh-auth
+
 Для аутентификации при использовании ssh
 Должен содержать ключ ssh-auth
+
 ```yaml
 # Ref: https://kubernetes.io/docs/concepts/configuration/secret/#ssh-authentication-secrets
 apiVersion: v1
@@ -1338,6 +1359,7 @@ stringData:
 ```
 
 ### kubernetes.io/tls
+
 Предназначен для хранения сертификата и связанного с ним ключа который обычно используется для tls. Оба ключа должны быть указаны.
 
 ```yaml
@@ -1356,4 +1378,5 @@ stringData:
 ```
 
 ### bootstrap.kubernetes.io/token
+
 Предназначен для токенов используемых в процессе начальной загрузки ноды. 
