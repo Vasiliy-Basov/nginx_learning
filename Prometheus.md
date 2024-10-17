@@ -3037,20 +3037,21 @@ Control plane (контрольная плоскость) - это набор к
 
 Таким образом, `API сервер` - это центральный компонент в `control plane Kubernetes`, который предоставляет всю API и входную точку для управления кластером. Он взаимодействует с остальными компонентами `control plane` для поддержания желаемого состояния кластера и рабочих нагрузок.
 
-
 ### На примере job kubernetes-nodes
+
 ```bash
 kubectl get nodes
 NAME                                       STATUS   ROLES    AGE     VERSION
 gke-k8s-test-k8s-node-pool-be3fb87b-1vn1   Ready    <none>   3d21h   v1.26.5-gke.1200
 ```
+
 Метрики собираются с kubelet. kubelet запущены на всех нодах кластера и kubelet агрегирует некоторое количество метрик.
 kubelet свои метрики просто так не отдает, он требует авторизации. Поэтому метрики kubelet мы берем из api servers.
 Чтобы получить доступ к метрикам kubelet мы должны обратиться к специальному url api servers
 Этот url имеет следующий вид
-https://kubernetes.default.svc/api/v1/nodes/gke-k8s-test-k8s-node-pool-be3fb87b-1vn1/proxy/metrics
+<https://kubernetes.default.svc/api/v1/nodes/gke-k8s-test-k8s-node-pool-be3fb87b-1vn1/proxy/metrics>
 Посмотреть можно здесь
-http://prometheus.k8s.basov.world/targets?search=
+<http://prometheus.k8s.basov.world/targets?search=>
 
 Таким образом, эти правила позволяют Prometheus получать метрики нод через API сервер Kubernetes вместо прямого обращения к нодам. Это дает более надежный и масштабируемый подход для мониторинга нод.
 
@@ -3085,18 +3086,23 @@ http://prometheus.k8s.basov.world/targets?search=
 ```
 
 ### На примере job kubernetes-service-endpoints
+
 Сбор метрик с endpoit-ов. т.е. c наших приложений которые мы запускаем в kubernetes
+
 ```bash
 # Посмотреть service в формате yaml
 kubectl get svc -n nginx-ingress nginx-ingress-controller -o yaml
 ```
+
 Аннотации которые записаны в нашем  yaml манифесте прометеус может замечать и работать с ними
+
 ```yaml
 metadata:
   annotations:
     meta.helm.sh/release-name: nginx-ingress
     meta.helm.sh/release-namespace: nginx-ingress
 ```
+
 В prometheus точки и косые линии в аннотациях заменяются нижним подчеркиванием
 Эта аннотация meta.helm.sh/release-name в prometheus будет __meta_helm_sh_release_name c которой мы дальше можем работать
 Т.е. чтобы фильтровать наши сервисы нам нужно придумать уникальную аннотацию
@@ -3109,6 +3115,7 @@ http значение по умолчанию для `__scheme__`
 нужно прописать нужное значение в сервисе в аннотации prometheus.io/path например значение /monitoring (если метрики находятся по этому пути)
 
 Чтобы prometheus вообще чтонибудь собирал должна быть прописана аннотация prometheus.io/scrape: "true"
+
 ```yaml
       job_name: kubernetes-service-endpoints
       kubernetes_sd_configs:
@@ -3168,11 +3175,14 @@ http значение по умолчанию для `__scheme__`
 ```
 
 Для мониторинга например kube-dns в GKE можем создать специальный сервис для доступа к метрикам
-Посмотреть на каком порту собирать метрики 
+Посмотреть на каком порту собирать метрики
+
 ```bash
 kubectl get pod -n kube-system kube-dns-fc686db9b-vhk24 -o yaml
 ```
+
 находим
+
 ```yaml
     ports:
     - containerPort: 10053
@@ -3187,6 +3197,7 @@ kubectl get pod -n kube-system kube-dns-fc686db9b-vhk24 -o yaml
 ```
 
 kubectl apply -f kube-dns-metrics.yaml
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -3208,6 +3219,7 @@ spec:
   selector:
     k8s-app: kube-dns
 ```
+
 ```yaml
 ---
 
@@ -3231,7 +3243,9 @@ spec:
   selector:
     k8s-app: kube-dns
 ```
+
 ## Blackbox Exporter
+
 ### На примере job kubernetes-service
 
 Мониторинг с помощью Blackbox Exporter
@@ -3276,24 +3290,28 @@ http://имя_blackbox_exporter/probe?module=http_2xx&target=имя_сервис
         target_label: service
     - honor_labels: true
 ```
+
 ```bash
 # install blackbox-exporter
 helm pull prometheus-community/prometheus-blackbox-exporter --untar
 helm upgrade --install --wait prometheus-blackbox-exporter --create-namespace --namespace monitoring ./prometheus-blackbox-exporter/
 ```
+
 Проверяем работу exporter-а
-http://blackbox.k8s.basov.world/probe?module=http_2xx&target=prometheus.io
+<http://blackbox.k8s.basov.world/probe?module=http_2xx&target=prometheus.io>
 или по endpoint-у
-http://10.72.0.16:9115/probe?module=http_2xx&target=prometheus.io
+<http://10.72.0.16:9115/probe?module=http_2xx&target=prometheus.io>
 
 ```bash
 # Зайти внутрь контейнера и посмотреть nslookup
 kubectl exec -it -n monitoring prometheus-server-79fbf9cbcd-rpxr7 -- sh
 nslookup 10.72.0.16
 ```
+
 Не нашел dns запись для 10.72.0.16
 
 Прописываем в values.yaml prometheus helm chart наш сервер blackbox.k8s.basov.world
+
 ```yaml
       # * `prometheus.io/probe`: Only probe services that have a value of `true`
       - job_name: 'kubernetes-services'
@@ -3326,6 +3344,7 @@ nslookup 10.72.0.16
 ```
 
 Дополнительные записи из задания
+
 ```yaml
           # Переназначаем label metrics_path на указанный в аннотации манифеста сервиса: prometheus.io/path: /......
           - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
@@ -3342,6 +3361,7 @@ nslookup 10.72.0.16
 
 Прописываем в сервисах которые мы хотим мониторить новые аннотации
 prometheus.io/probe: "true"
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -3361,23 +3381,31 @@ spec:
       port: 80
       targetPort: 8080
 ```
+
 ```bash
 helm upgrade --install --wait prometheus --create-namespace --namespace monitoring ./prometheus
 ```
+
 Проверяем что конфиг применился
+
 ```bash
 kubectl edit cm -n monitoring prometheus-server
 ```
+
 Применяем изменение в манифесте сервиса
+
 ```bash
 kubectl apply -f example_app/
 ```
+
 Проверяем что все применилось
+
 ```bash
 kubectl get svc -n app prom-example-app -o yaml
 ```
+
 Прверяем что метрики собираются
-http://prometheus.k8s.basov.world/targets?search=
+<http://prometheus.k8s.basov.world/targets?search=>
 
 Проверяем что эти сервисы доступны
 Выполняем PROMQL запрос
@@ -3385,37 +3413,46 @@ probe_success
 Должен быть 1
 
 Проверка через curl
+
 ```bash
 curl -is "http://10.72.0.16:9115/probe?module=http_2xx&target=prometheus-alertmanager.monitoring.svc:9093"
 ```
+
 или
+
 ```bash
 curl -is "http://blackbox.k8s.basov.world/probe?module=http_2xx&target=prometheus-alertmanager.monitoring.svc:909
 3"
 ```
 
 ## Promtool
+
 Утилита для проверки конфигов и метрик
 Можем встраивать в CICD или ansible
 
 ## Basic Authorization
-Настраиваем авторизацию для Prometheus
-https://kubernetes.github.io/ingress-nginx/examples/auth/basic/
 
-https://communities.sas.com/t5/SAS-Communities-Library/Configuring-Basic-Authentication-for-Prometheus-and-Alertmanager/ta-p/788803
+Настраиваем авторизацию для Prometheus
+<https://kubernetes.github.io/ingress-nginx/examples/auth/basic/>
+
+<https://communities.sas.com/t5/SAS-Communities-Library/Configuring-Basic-Authentication-for-Prometheus-and-Alertmanager/ta-p/788803>
 
 /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/basic_auth_for_prom
 
 Создаем пароль в файл auth (здесь пароль admin)
+
 ```bash
 htpasswd -c auth admin
 ```
+
 Создаем секрет из файла auth
+
 ```bash
 kubectl create secret generic basic-auth --from-file auth -n monitoring
 ```
 
 Прописываем annotations в секции ingress values.yaml
+
 ```yaml
     annotations:
     #   kubernetes.io/ingress.class: nginx
@@ -3428,10 +3465,10 @@ kubectl create secret generic basic-auth --from-file auth -n monitoring
       nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required'
 ```
 
-
 ## /Federation
 
 Устанавливаем чарт Prometheus для Настройки Federation сервера prometheus из локальной папки prometheus
+
 ```bash
 helm upgrade --install --wait prometheus-federation --create-namespace --namespace prometheus-federation -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/prometheus_federation/federation.yaml ./prometheus/
 ```
@@ -3451,14 +3488,16 @@ Endpoint при обращении к которому получаем спис
 
 Добавление метки сервера `prometheus` ко всем метрикам  
 Прописываем на уровне нижестоящего сервера:
-```
+
+```conf
 global: external_labels:
   prom: prom-0
 ```
+
 Благодоря этой метке мы всегда можем узнать с какого сервера `prometheus` была получена та или иная метрика.
 
-
 Если нужно подключаться к серверу на котором настроена авторизация то прописываем Basic Auth
+
 ```yaml
   prometheus.yml:
     scrape_configs:
@@ -3489,6 +3528,7 @@ global: external_labels:
         #   username: 'admin'
         #   password: 'admin'
 ```
+
 Тут надо обратить внимание на поля:  
 
 `match` - является обязательным полем, и в нем указывается фильтр по `labels`, какие метрики мы хотим получать. Через этот параметр может быть ограничен набор метрик, которые забираются с нижестоящего `Prometheus`.  
@@ -3496,10 +3536,12 @@ global: external_labels:
 `targets` - в нем указано обращение к `Prometheus` через имя сервиса.
 
 ## Долгое хранение данных в prometheus
+
 1) `Victoria Metrics`
 2) Настраиваем дополнительный prometheus и собираем метрики с других prometheus серверов с помощью `/federation` но с более низким `scraping interval`.
 
 ## Victoria Metrics
+
 Есть `Single Mode` и `Cluster Mode`  
 `Single mode` - все в одном бинарнике  
 `Cluster Mode` Несколько бинарников
@@ -3508,6 +3550,7 @@ global: external_labels:
 
 Поддерживается репликацию данных из коробки  
 Компоненты:
+
 - `vmStorage` - Это tsdb где хранятся наши метрики (Можно масштабировать)
 - `vmInsert` - Компонент через который осуществляется запись данных в tsdb (можно маштабировать и создать несколько vmInsert-ов)
 
@@ -3531,15 +3574,19 @@ https://victoriametrics.github.io/helm-charts/
 helm repo add vm https://victoriametrics.github.io/helm-charts/
 helm repo update
 ```
+
 Получаем values.yaml
+
 ```bash
 helm show values vm/victoria-metrics-cluster > values.yaml
 ```
+
 Меняем values.yaml:
 /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/victoria/values.yaml
 Ключевые изменения в values.yml:
 
 Заданы ресурсы для всех объектов
+
 ```yaml
   # -- Resource object
   resources:
@@ -3552,6 +3599,7 @@ helm show values vm/victoria-metrics-cluster > values.yaml
 ```
 
 Задан ​podDisruptionBudget​ для всех объектов
+
 ```yaml
   # данная настройка влияет на то, сколько Pod может быть одновременно выключено (распространяется только на eviction API). 
   # Она позволяет гарантировать, что при обслуживании кластера Kubernetes не будут выключены все Pod'ы с приложением.
@@ -3564,6 +3612,7 @@ helm show values vm/victoria-metrics-cluster > values.yaml
 ```
 
 Задан podAntiAffinity​
+
 ```yaml
   # данная настройка позволяет гарантировать, что Pod из
   # StatefulSet и Pod из Deployment не будут запущены на одной node. Без
@@ -3581,6 +3630,7 @@ helm show values vm/victoria-metrics-cluster > values.yaml
 ```
 
 vmselect.extraArgs ​- добавлены следующие параметры:
+
 ```yaml
   extraArgs:
     envflag.enable: "true"
@@ -3597,6 +3647,7 @@ vmselect.extraArgs ​- добавлены следующие параметры
 ```
 
 vmInsert.extraArgs ​- добавлены следующие параметры:
+
 ```yaml
   extraArgs:
     envflag.enable: "true"
@@ -3607,16 +3658,20 @@ vmInsert.extraArgs ​- добавлены следующие параметры
 ```
 
 vmStorage.StorageClass
+
 ```yaml
     # -- Storage class name. Will be empty if not setted
     storageClass: standard-rwo
 ```
 
 Установка в kubernetes:
+
 ```bash
 helm upgrade --install vm-cluster vm/victoria-metrics-cluster -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/victoria/values.yaml -n victoria --create-namespace
 ```
+
 В результате будут установлены следующие компоненты:  
+
 - `vmSelect` - будет установлен как Deployment с значением replicas: 2
 - `vmInsert` - будет установлен как Deployment с значением replicas: 2
 - `vmStorage` - будет установлен как StatefulSet с значением replicas: 2
@@ -3624,6 +3679,7 @@ helm upgrade --install vm-cluster vm/victoria-metrics-cluster -f /home/baggurd/D
 #### Настройка Prometheus для Victoria Metrics
 
 То что прописываем в prometheus в values.yaml
+
 ```yaml
   # Настройки отвечающие за настройку внешнего хранилища для метрик например victoriametric
   ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
@@ -3641,6 +3697,7 @@ URL, куда отправляет данные Prometheus сервер, име�
 Данная структура используется только для `Victoria Metrics` в режиме `​Cluster​`. Если вы используете `Victoria Metrics` в режиме `​Single Node`​, то запросы будут иметь структуру: `​/<Prometheus API query>`
 
 #### Установка dashboards для grafana
+
 kubectl create -f /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/grafana/victoria_metrics_dashboards -n grafana
 
 Для того, чтобы Grafana увидела новый datasource, нужно перезапустить её Pod
@@ -3648,11 +3705,11 @@ kubectl delete po -n grafana grafana-6f578c8666-t4qgt
 
 ## Grafana
 
-https://github.com/grafana/helm-charts/blob/main/charts/grafana/README.md
+<https://github.com/grafana/helm-charts/blob/main/charts/grafana/README.md>
 Скачиваем values.yaml
 
-
 Меняем настройки
+
 ```yaml
 ingress:
   enabled: true
@@ -3681,10 +3738,12 @@ ingress:
       hosts:
       - grafana.k8s.basov.world
 ```
+
 ```yaml
 adminUser: admin
 adminPassword: grafanapassword
 ```
+
 ```yaml
 ## Чтобы не слетали настройки при перезапуске графаны
 persistence:
@@ -3716,7 +3775,9 @@ persistence:
     ##
     # sizeLimit: 300Mi
 ```
+
 root_url - он нужен например для расылки инвайтов на почту где будут генерироваться линки для новых пользователей, для подключения сторонней аутентификации
+
 ```yaml
 grafana.ini:
 
@@ -3726,6 +3787,7 @@ grafana.ini:
 ```
 
 install grafana
+
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
@@ -3738,6 +3800,7 @@ helm upgrade --install --wait --atomic grafana grafana/grafana \
 ```
 
 Получить пароль если не устанавливали
+
 ```bash
 kubectl get secret --namespace grafana grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
 kubectl get ingress --all-namespaces
@@ -3750,7 +3813,7 @@ Data Sources - Add new data source
 Выбираем будет ли он default или нет
 
 Прописываем имя сервиса вместе с namespace
-Prometheus server URL: http://prometheus-server.monitoring.svc.cluster.local
+Prometheus server URL: <http://prometheus-server.monitoring.svc.cluster.local>
 
 Save and Test
 
@@ -3766,10 +3829,10 @@ Run Query - Проверяем что работает
 
 `Home` - `Dashboards`  
 `New Folder` - `Test` - `Create`: Создаем папку для dashboards  
-`New Dashboard `- Нажимаем на иконку "`​механизм​, шестеренка"`:  
+`New Dashboard`- Нажимаем на иконку "`​механизм​, шестеренка"`:  
 
 Name​: `Our first dash`  
-​Description​: `test-test-test`   
+​Description​: `test-test-test`  
 Folder: `Test`  
 `Save dashboard​.`  
 
@@ -3784,7 +3847,6 @@ Folder: `Test`
   `kube_deployment_status_replicas_unavailable{namespace=~"$Namespace"}`  
   Legend:  
   `Unavailable {{ deployment }} ns: {{namespace}}`
-
 
 - Создадим вторую `Visualization панель`  
 Выберем метод отображения `gauge`  
