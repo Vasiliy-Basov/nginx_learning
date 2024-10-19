@@ -1015,6 +1015,10 @@ spec:
 
 Заявка на определенное хранилище
 
+- `ReadWriteOnce` - позволяет монтировать том для чтения и записи только одним подом  
+- `ReadOnlyMany` - позволяет монтировать том как "только для чтения" нескольким подам одновременно, как на одном узле, так и на разных.  
+- `ReadWriteMany` - позволяет монтировать том для чтения и записи несколькими подами одновременно, причем как на одном узле, так и на разных.  
+
 ```yaml
 # https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-claim-v1/
 # Заявка на хранилище PersistentVolume
@@ -1107,6 +1111,142 @@ spec:
         persistentVolumeClaim:
           claimName: aws-pvc-kuber-1
 ```
+
+### PostgresSQL SC PV PVC Deployment  
+
+#### Создаем SC PostgresSQL (Локальный, без провайдера)
+
+```yaml
+# https://kubernetes.io/docs/concepts/storage/storage-classes/#local
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage-postgres
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+```
+
+#### Создаем PV PostgresSQL (На локальном диске ноды)
+
+```yaml
+# https://kubernetes.io/docs/concepts/storage/volumes/#local
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 500Mi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local-storage-postgres
+  local:
+    path: /mnt/data/postgres ## this folder need exist on your node. Keep in minds also who have permissions to folder. Used tmp as it have 3x rwx
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - kub-worker-01
+```
+
+#### Создаем PVC PostgresSQL
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: test
+  name: postgres-pvc
+spec:
+  storageClassName: local-storage-postgres
+  resources:
+    requests:
+      storage: 500Mi
+  # Только один инстанс может туда писать и читать    
+  accessModes:
+    - ReadWriteOnce
+```
+
+#### Создаем Deployment PostgresSQL
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: test
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      components: postgres
+  template:
+    metadata:
+      labels:
+        components: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        ports:
+        - containerPort: 5432
+        # Переменные нужные для postgres, см https://hub.docker.com/_/postgres 
+        env:
+        - name: POSTGRES_DB
+          value: demo
+        - name: POSTGRES_USER
+          value: demo
+        - name: POSTGRES_PASSWORD
+          value: demo
+        # Куда внутри пода мы размещаем данные 
+        volumeMounts:
+          # Какой Volume использовать (postgres-data)
+          - name: postgres-data
+            mountPath: /var/lib/postgresql/data
+            # Подпапка (Postgres не может работать в корне)
+            subPath: postgres
+      volumes:
+        # Получаем Volume из нашего pvc
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+```
+
+Проверяем что все работает  
+Смотрим что в каталоге /mnt/data/postgres появились данные от postgres.  
+
+```bash
+kubectl port-forward -n test pod/postgres-7f6f74b88f-fsfrz 5432:5432
+```
+
+Подключаемся к базе например с помощью программы DataGrip  
+
+Выполняем запрос
+
+```sql
+CREATE TABLE "Link" (
+    "id" SERIAL NOT NULL,
+    "url" TEXT NOT NULL,
+    "hash" TEXT NOT NULL,
+
+    CONSTRAINT "Link_pkey" PRIMARY KEY ("id")
+);
+```
+
+Перезапускаем deployment проверяем что данные не пропали  
 
 ## Secrets
 
