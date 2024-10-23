@@ -426,3 +426,12 @@ ass
 
 # copy ssh pub key to remote server
 ssh-copy-id -i ~/.ssh/id_ed25519.pub admin@just.some.other.server
+
+# .gitignore добавить уже закоммиченный файл
+# remove specific file from git cache
+git rm --cached filename
+
+# remove all files from git cache
+git rm -r --cached .
+git add .
+git commit -m ".gitignore is now working"
