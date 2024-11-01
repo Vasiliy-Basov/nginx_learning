@@ -1435,6 +1435,47 @@ k apply -f secret-stringData.yaml
                 key: password
 ```
 
+### Использование секретов PostgresSQL
+
+\nginx_learning\kubernetes\01_purple_learning\KUBE-CONFIG\postgres
+
+#### Секрет PostgresSQL
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: test
+type: Opaque
+stringData:
+  POSTGRES_DB: demo
+  POSTGRES_USER: demo
+  POSTGRES_PASSWORD: demo
+```
+
+#### Deployment PostgresSQL
+
+```yaml
+        # Переменные нужные для postgres, см https://hub.docker.com/_/postgres 
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+```
+
 ### Использование секретов внутри наших контейнеров используя volume а не env (более безопасный способ)
 
 /home/baggurd/Dropbox/Projects/nginx_learning/kubernetes/27_secrets/example-2
