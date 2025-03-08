@@ -17,3 +17,4 @@ ansible/client_golang/
 ansible/group_vars/
 ansible/roles/addastrarepo/
 ansible/inventory.ini
+ansible/client_golang
